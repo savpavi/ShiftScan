@@ -1,0 +1,293 @@
+"""
+AI Planner Service
+Google Gemini API ile akıllı aktivite planlama
+"""
+
+from typing import List, Tuple, Dict, Optional
+from datetime import datetime, timedelta
+import os
+import json
+import asyncio
+import time
+
+# Gemini API yapılandırması opsiyonel
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
+
+
+# Aktivite haritası
+ACTIVITY_MAP = {
+    'content-production': 'İçerik Üretimi',
+    'sports': 'Spor',
+    'reading': 'Kitap Okuma',
+    'social': 'Sosyal Yaşam / Arkadaşlar',
+    'gaming': 'Oyun / Dinlenme'
+}
+
+
+def is_gemini_configured() -> bool:
+    """Gemini API'nin yapılandırılıp yapılandırılmadığını kontrol eder"""
+    if not GEMINI_AVAILABLE:
+        return False
+    
+    api_key = os.getenv("GOOGLE_API_KEY")
+    return bool(api_key and api_key != "your_gemini_api_key_here")
+
+
+def configure_gemini():
+    """Gemini API'yi yapılandırır"""
+    if not GEMINI_AVAILABLE:
+        print("WARNING: google-generativeai package not installed")
+        return False
+    
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key or api_key == "your_gemini_api_key_here":
+        print("WARNING: GOOGLE_API_KEY not found! Set API key in .env file.")
+        return False
+    
+    genai.configure(api_key=api_key)
+    print("SUCCESS: Google Gemini API configured")
+    return True
+
+
+def create_gemini_activity_prompt(
+    free_slots: List[Tuple[str, datetime, datetime]],
+    activities: Dict
+) -> str:
+    """
+    Gemini için sadece aktivite dağılımı isteyen prompt oluşturur
+    
+    Args:
+        free_slots: Boş zaman slotları
+        activities: Aktivite hedefleri
+    
+    Returns:
+        Prompt string
+    """
+    # Boş slotları özetle
+    slot_summary = "BOŞ ZAMAN ARALIKLARI:\n"
+    day_totals = {}
+    
+    for day_name, start, end in free_slots:
+        duration = (end - start).total_seconds() / 3600  # saat
+        if day_name not in day_totals:
+            day_totals[day_name] = 0
+        day_totals[day_name] += duration
+    
+    for day, total_hours in day_totals.items():
+        slot_summary += f"- {day}: {total_hours:.1f} saat boş\n"
+    
+    # Aktivite hedefleri
+    activity_goals = "AKTİVİTE HEDEFLERİ:\n"
+    
+    for key, activity in activities.items():
+        activity_name = ACTIVITY_MAP.get(key, key)
+        # activity dict veya object olabilir
+        activity_value = activity.get('value') if isinstance(activity, dict) else activity.value
+        activity_type = activity.get('type') if isinstance(activity, dict) else activity.type
+        unit = 'gün' if activity_type == 'days' else 'saat'
+        activity_goals += f"- {activity_name}: Haftada {activity_value} {unit}\n"
+    
+    prompt = f"""ZAMAN YÖNETİMİ ASISTANI: Haftalık aktivite dağılımı yapmanı istiyorum.
+
+{slot_summary}
+{activity_goals}
+
+KURALLAR:
+- Her aktiviteyi uygun günlere dağıt
+- Çakışma olmasın
+- İNSANİ YAŞAM STANDARTLARINA göre planla
+- 'Sosyal Yaşam / Arkadaşlar' aktivitesi asla sabah 04:00 - 08:00 arasına konulamaz. Genellikle akşam saatlerine (18:00-23:00) koyulmalıdır.
+- 'Spor' sabah erken (06:00-09:00) veya iş çıkışı olabilir.
+- 'İçerik Üretimi' gündüz saatlerine (09:00-18:00) öncelik ver.
+- 'Kitap Okuma' akşam dinlenme saatlerine uygun.
+- Aktiviteleri insanların uyanık olduğu saatlere yerleştir (gece 01:00-06:00 kaçının).
+- Enerji verimliliğini düşün (gece vardiyası sonrası ağır spor koyma).
+
+Çıktıyı SADECE JSON formatında ver, başka açıklama yok:
+[
+  {{"day": "Pazartesi", "activity": "Spor", "hours": 1}},
+  {{"day": "Salı", "activity": "İçerik Üretimi", "hours": 2}}
+]"""
+    
+    return prompt
+
+
+async def get_gemini_activity_plan(
+    free_slots: List[Tuple[str, datetime, datetime]],
+    activities: Dict,
+    timeout: float = 30.0
+) -> Optional[List[Dict]]:
+    """
+    Gemini API'den aktivite planı alır
+    
+    Args:
+        free_slots: Boş zaman slotları
+        activities: Aktivite hedefleri
+        timeout: API timeout süresi
+    
+    Returns:
+        Aktivite planı listesi veya None
+    """
+    if not is_gemini_configured():
+        print("WARNING: Gemini API not configured, returning None")
+        return None
+    
+    prompt = create_gemini_activity_prompt(free_slots, activities)
+    
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        
+        response = await asyncio.wait_for(
+            asyncio.to_thread(model.generate_content, prompt),
+            timeout=timeout
+        )
+        
+        if not response.text:
+            print("ERROR: Gemini API returned empty response")
+            return None
+        
+        # JSON parse et
+        json_text = response.text.strip()
+        if "```json" in json_text:
+            json_text = json_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in json_text:
+            json_text = json_text.split("```")[1].split("```")[0].strip()
+        
+        activity_plan = json.loads(json_text)
+        return activity_plan
+        
+    except asyncio.TimeoutError:
+        print(f"ERROR: Gemini API timeout after {timeout} seconds")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Failed to parse Gemini JSON response: {e}")
+        return None
+    except Exception as e:
+        print(f"ERROR: Gemini API error: {e}")
+        return None
+
+
+def apply_activity_plan(
+    free_slots: List[Tuple[str, datetime, datetime]],
+    activity_plan: List[Dict]
+) -> List[Tuple[datetime, datetime, str]]:
+    """
+    Aktivite planını boş slotlara çakışma olmadan yerleştirir
+    
+    Args:
+        free_slots: Boş zaman slotları
+        activity_plan: Gemini'den gelen aktivite planı
+    
+    Returns:
+        Aktivite etkinlikleri listesi
+    """
+    activity_events = []
+    
+    # Gün bazında boş slotları grupla
+    available_slots = []
+    for day_name, start, end in free_slots:
+        available_slots.append({
+            'day': day_name,
+            'start': start,
+            'end': end,
+            'duration': (end - start).total_seconds() / 3600,
+            'used_until': start
+        })
+    
+    # Aktiviteleri yerleştir
+    for plan_item in activity_plan:
+        day = plan_item.get('day')
+        activity_key = plan_item.get('activity')
+        hours_needed = plan_item.get('hours', 0)
+        
+        # Aktivite adını bul
+        activity_name = None
+        for key, name in ACTIVITY_MAP.items():
+            if name.lower() == activity_key.lower() or key.lower() == activity_key.lower():
+                activity_name = name
+                break
+        
+        if not activity_name or hours_needed <= 0:
+            continue
+        
+        # O gün için uygun slotları bul
+        day_slots = [slot for slot in available_slots if slot['day'] == day]
+        remaining_hours = hours_needed
+        
+        for slot in day_slots:
+            if remaining_hours <= 0:
+                break
+            
+            available_in_slot = slot['end'] - slot['used_until']
+            available_hours = available_in_slot.total_seconds() / 3600
+            
+            if available_hours <= 0:
+                continue
+            
+            hours_to_place = min(remaining_hours, available_hours)
+            
+            activity_start = slot['used_until']
+            activity_end = activity_start + timedelta(hours=hours_to_place)
+            
+            activity_events.append((activity_start, activity_end, activity_name))
+            
+            slot['used_until'] = activity_end
+            remaining_hours -= hours_to_place
+    
+    return activity_events
+
+
+def generate_basic_plan(
+    free_slots: List[Tuple[str, datetime, datetime]],
+    activities: Dict
+) -> List[Tuple[datetime, datetime, str]]:
+    """
+    API olmadan basit aktivite planı oluşturur (fallback)
+    
+    Args:
+        free_slots: Boş zaman slotları
+        activities: Aktivite hedefleri
+    
+    Returns:
+        Aktivite etkinlikleri listesi
+    """
+    activity_events = []
+    
+    # Aktiviteleri basit bir şekilde dağıt
+    activity_list = []
+    for key, activity in activities.items():
+        activity_name = ACTIVITY_MAP.get(key, key)
+        activity_value = activity.get('value') if isinstance(activity, dict) else activity.value
+        activity_type = activity.get('type') if isinstance(activity, dict) else activity.type
+        
+        if activity_type == 'hours':
+            hours = activity_value
+        else:  # days
+            hours = activity_value * 1  # Her gün için 1 saat varsay
+        
+        activity_list.append({'name': activity_name, 'hours': hours})
+    
+    # Slotlara dağıt
+    slot_index = 0
+    for activity in activity_list:
+        remaining = activity['hours']
+        
+        while remaining > 0 and slot_index < len(free_slots):
+            day_name, start, end = free_slots[slot_index]
+            slot_duration = (end - start).total_seconds() / 3600
+            
+            hours_to_use = min(remaining, slot_duration, 2)  # Max 2 saat blok
+            
+            if hours_to_use > 0:
+                activity_end = start + timedelta(hours=hours_to_use)
+                activity_events.append((start, activity_end, activity['name']))
+                remaining -= hours_to_use
+            
+            slot_index += 1
+    
+    return activity_events

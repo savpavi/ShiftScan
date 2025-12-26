@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vardiya Takvimi | Kolay Vardiya Planlayıcı</title>
+    <meta
+      name="description"
+      content="Vardiya programınızı kolayca takvim dosyasına dönüştürün. OCR destekli, hızlı ve ücretsiz."
+    />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg" />
+    <link rel="apple-touch-icon" href="/static/icons/icon.svg" />
+    <meta name="theme-color" content="#3b82f6" />
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Cropper.js CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
+    />
+
+    <!-- Ana Stil -->
+    <link rel="stylesheet" href="/static/css/style.css" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json" />
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Vardiya" />
+    <link rel="apple-touch-icon" href="/static/icons/icon.svg" />
+  </head>
+  <body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="spinner"></div>
+      <p class="loading-text" data-i18n="planCreating">Plan oluşturuluyor...</p>
+    </div>
+
+    <div class="container space-y-6">
+      <!-- Header -->
+      <header class="text-center" style="padding: 20px 0">
+        <!-- Header Controls: Dil Seçici + Tema Toggle -->
+        <div class="header-controls">
+          <!-- Dil Seçici -->
+          <select id="languageSelect" class="input" style="width: auto; padding: 8px 12px; font-size: 0.875rem;">
+            <option value="tr">🇹🇷 Türkçe</option>
+            <option value="en">🇬🇧 English</option>
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="fr">🇫🇷 Français</option>
+          </select>
+          
+          <!-- Tema Toggle -->
+          <button id="themeToggle" class="theme-toggle" title="Tema Değiştir">
+            <!-- Güneş İkonu (Light mode göstergesi) -->
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <!-- Ay İkonu (Dark mode göstergesi) -->
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          </button>
+        </div>
+        
+        <h1 class="page-title" data-i18n="appTitle">📅 Vardiya Takvimi</h1>
+        <p class="page-subtitle" data-i18n="appSubtitle">
+          Vardiya programınızı takvim dosyasına dönüştürün
+        </p>
+      </header>
+
+      <!-- Ana Form Kartı -->
+      <main class="card">
+        <!-- Adım 1: Tarih Seçimi -->
+        <section class="form-group">
+          <label class="section-title" data-i18n="weekStart">Hafta Başlangıcı</label>
+          <div class="flex gap-4" style="flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+              <input
+                type="date"
+                id="startDate"
+                class="input"
+                style="width: 100%"
+              />
+              <p class="form-hint" data-i18n="weekStartHint">Programın başladığı Pazartesi gününü seçin</p>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+              <label class="form-label" data-i18n="repeatWeeks">Tekrar Sayısı</label>
+              <select id="repeatWeeks" class="input" style="width: 100%">
+                <option value="1" data-i18n="oneWeek">1 Hafta</option>
+                <option value="2" data-i18n="twoWeeks">2 Hafta</option>
+                <option value="3" data-i18n="threeWeeks">3 Hafta</option>
+                <option value="4" data-i18n="fourWeeks">4 Hafta (1 Ay)</option>
+                <option value="8" data-i18n="eightWeeks">8 Hafta (2 Ay)</option>
+                <option value="12" data-i18n="twelveWeeks">12 Hafta (3 Ay)</option>
+              </select>
+              <p class="form-hint" data-i18n="repeatHint">Aynı vardiya programını kaç hafta tekrarlasın?</p>
+            </div>
+          </div>
+          
+          <!-- Dijital Acentelik Seçeneği -->
+          <div class="dijital-acentelik-card">
+            <!-- Ana Başlık ve Toggle -->
+            <label class="dijital-header">
+              <div class="dijital-toggle">
+                <input type="checkbox" id="dijitalAcentelik" />
+                <span class="dijital-slider"></span>
+              </div>
+              <div class="dijital-info">
+                <span class="dijital-title">📞 Dijital Acentelik</span>
+                <span class="dijital-desc">Vardiya bitiminden 1 saat önce hatırlatma</span>
+              </div>
+            </label>
+            
+            <!-- Gün Seçicileri -->
+            <div id="dijitalDaysContainer" class="dijital-days-container hidden">
+              <p class="dijital-days-label">Hangi günlerde görevin var?</p>
+              <div class="dijital-days-grid">
+                <label class="day-pill">
+                  <input type="checkbox" class="dijital-day" data-day="0" />
+                  <span>Pzt</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="dijital-day" data-day="1" />
+                  <span>Sal</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="dijital-day" data-day="2" />
+                  <span>Çar</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="dijital-day" data-day="3" />
+                  <span>Per</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="dijital-day" data-day="4" />
+                  <span>Cum</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="dijital-day" data-day="5" />
+                  <span>Cmt</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="dijital-day" data-day="6" />
+                  <span>Paz</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Adım 2: Vardiya Girişi -->
+        <section class="form-group">
+          <label class="section-title" data-i18n="shiftProgram">Vardiya Programı</label>
+
+          <!-- Şablon Seçimi -->
+          <div class="template-section" style="margin-bottom: 16px;">
+            <div class="flex items-center gap-2" style="margin-bottom: 8px;">
+              <span class="form-label" style="margin: 0; font-size: 0.8rem; color: var(--text-muted);" data-i18n="templates">Hazır Şablonlar</span>
+            </div>
+            <div class="template-grid" id="templateGrid" style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <!-- Şablonlar dinamik olarak yüklenecek -->
+            </div>
+          </div>
+
+          <!-- Görsel Yükleme -->
+          <div class="upload-wrapper" style="margin-bottom: 16px">
+            <input
+              type="file"
+              id="ocrInput"
+              accept="image/*"
+              style="display: none"
+            />
+            <div
+              class="upload-area"
+              onclick="document.getElementById('ocrInput').click()"
+            >
+              <svg
+                class="upload-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <p class="upload-text" data-i18n="uploadHint">
+                <strong>Görsel yükleyin</strong> veya metin olarak girin
+              </p>
+            </div>
+          </div>
+
+          <!-- Cropper Alanı (Gizli) -->
+          <div
+            id="cropperContainer"
+            class="hidden fade-in"
+            style="margin-bottom: 16px"
+          >
+            <div
+              style="
+                background: #f1f5f9;
+                border-radius: 8px;
+                overflow: hidden;
+                max-height: 400px;
+              "
+            >
+              <img
+                id="imageToCrop"
+                src=""
+                style="max-width: 100%; display: block"
+              />
+            </div>
+            <button
+              id="scanCropBtn"
+              class="btn btn-primary btn-block"
+              style="margin-top: 12px"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+              <span data-i18n="scanSelectedArea">Seçili Alanı Tara</span>
+            </button>
+          </div>
+
+          <!-- OCR İlerleme -->
+          <div
+            id="ocrProgressContainer"
+            class="hidden"
+            style="margin-bottom: 16px"
+          >
+            <div class="progress-text">
+              <span id="ocrStatusText" data-i18n="scanning">Taranıyor...</span>
+              <span id="ocrPercent">0%</span>
+            </div>
+            <div class="progress">
+              <div
+                id="ocrProgressBar"
+                class="progress-bar"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Metin Alanı -->
+          <textarea
+            id="shiftText"
+            class="input textarea"
+            rows="6"
+            data-i18n-placeholder="textareaPlaceholder"
+            placeholder="Örnek format:
+Pzt 08:00 - 17:00
+Salı OFF
+Çarşamba 14:00 - 22:00
+Perşembe 08:00 - 17:00
+Cuma OFF
+Cumartesi 10:00 - 18:00
+Pazar 10:00 - 18:00"
+          ></textarea>
+          <p class="form-hint" data-i18n="textareaHint">
+            Her satıra bir gün yazın. İzinli günler için OFF, İZİN veya BOŞ
+            kullanabilirsiniz.
+          </p>
+        </section>
+
+        <!-- Gelişmiş Mod Toggle -->
+        <section class="mode-toggle">
+          <input type="checkbox" id="advancedModeToggle" class="checkbox" />
+          <label
+            for="advancedModeToggle"
+            class="mode-toggle-label"
+            style="cursor: pointer"
+          >
+            <strong data-i18n="advancedMode">Gelişmiş Mod:</strong> <span data-i18n="advancedModeDesc">Aktivite planlama ve AI desteği</span>
+          </label>
+        </section>
+
+        <!-- Gelişmiş Mod İçeriği (Gizli) -->
+        <section
+          id="advancedSection"
+          class="hidden fade-in"
+          style="
+            padding: 20px;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 20px;
+          "
+        >
+          <h3 class="section-title" data-i18n="weeklyActivities">Haftalık Aktiviteler</h3>
+          <p class="form-hint" style="margin-bottom: 16px" data-i18n="activitiesHint">
+            Boş zamanlarınıza yerleştirilecek aktiviteleri seçin
+          </p>
+
+          <div class="activity-grid">
+            <!-- İçerik Üretimi -->
+            <div class="activity-card">
+              <label class="checkbox-group">
+                <input
+                  type="checkbox"
+                  id="content-production"
+                  class="checkbox"
+                />
+                <span class="activity-label" data-i18n="contentProduction">📝 İçerik Üretimi</span>
+              </label>
+              <input
+                type="number"
+                id="content-hours"
+                data-i18n-placeholder="weeklyHours"
+                placeholder="Haftalık saat"
+                min="1"
+                max="40"
+                class="input"
+                style="margin-top: 12px"
+                disabled
+              />
+            </div>
+
+            <!-- Spor -->
+            <div class="activity-card">
+              <label class="checkbox-group">
+                <input type="checkbox" id="sports" class="checkbox" />
+                <span class="activity-label" data-i18n="sports">🏃 Spor</span>
+              </label>
+              <input
+                type="number"
+                id="sports-days"
+                data-i18n-placeholder="weeklyDays"
+                placeholder="Haftalık gün"
+                min="1"
+                max="7"
+                class="input"
+                style="margin-top: 12px"
+                disabled
+              />
+            </div>
+
+            <!-- Kitap Okuma -->
+            <div class="activity-card">
+              <label class="checkbox-group">
+                <input type="checkbox" id="reading" class="checkbox" />
+                <span class="activity-label" data-i18n="reading">📚 Kitap Okuma</span>
+              </label>
+              <input
+                type="number"
+                id="reading-hours"
+                data-i18n-placeholder="weeklyHours"
+                placeholder="Haftalık saat"
+                min="1"
+                max="40"
+                class="input"
+                style="margin-top: 12px"
+                disabled
+              />
+            </div>
+
+            <!-- Sosyal -->
+            <div class="activity-card">
+              <label class="checkbox-group">
+                <input type="checkbox" id="social" class="checkbox" />
+                <span class="activity-label" data-i18n="social">👥 Sosyal Aktivite</span>
+              </label>
+              <input
+                type="number"
+                id="social-hours"
+                data-i18n-placeholder="weeklyHours"
+                placeholder="Haftalık saat"
+                min="1"
+                max="40"
+                class="input"
+                style="margin-top: 12px"
+                disabled
+              />
+            </div>
+
+            <!-- Oyun/Dinlenme -->
+            <div class="activity-card">
+              <label class="checkbox-group">
+                <input type="checkbox" id="gaming" class="checkbox" />
+                <span class="activity-label" data-i18n="gaming">🎮 Oyun / Dinlenme</span>
+              </label>
+              <input
+                type="number"
+                id="gaming-hours"
+                data-i18n-placeholder="weeklyHours"
+                placeholder="Haftalık saat"
+                min="1"
+                max="40"
+                class="input"
+                style="margin-top: 12px"
+                disabled
+              />
+            </div>
+          </div>
+        </section>
+
+        <!-- Butonlar -->
+        <div class="flex gap-4" style="flex-wrap: wrap">
+          <button
+            id="convertBtn"
+            class="btn btn-primary btn-lg"
+            style="flex: 1; min-width: 200px"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg>
+            <span data-i18n="preview">Önizle</span>
+          </button>
+          <button
+            id="generatePlanBtn"
+            class="btn btn-success btn-lg hidden"
+            style="flex: 1; min-width: 200px"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+              />
+            </svg>
+            <span data-i18n="createAIPlan">AI ile Plan Oluştur</span>
+          </button>
+        </div>
+      </main>
+
+      <!-- Önizleme Bölümü (Gizli) -->
+      <section id="previewSection" class="card hidden fade-in">
+        <div class="card-header">
+          <h2 class="card-title" data-i18n="detectedShifts">✅ Algılanan Vardiyalar</h2>
+          <p class="card-subtitle" data-i18n="shiftsWillBeAdded">Aşağıdaki vardiyalar takvime eklenecek</p>
+        </div>
+
+        <ul
+          id="previewList"
+          class="preview-list"
+          style="max-height: 300px; overflow-y: auto"
+        >
+          <!-- Dinamik olarak doldurulacak -->
+        </ul>
+
+        <!-- Export Butonları -->
+        <div class="flex gap-2" style="flex-wrap: wrap; margin-top: 20px;">
+          <button
+            id="downloadBtn"
+            class="btn btn-success btn-lg"
+            style="flex: 1; min-width: 150px;"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <span>ICS</span>
+          </button>
+          
+          <button
+            id="downloadPDFBtn"
+            class="btn btn-secondary btn-lg"
+            style="flex: 1; min-width: 150px;"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
+            </svg>
+            <span>PDF</span>
+          </button>
+          
+          <button
+            id="downloadExcelBtn"
+            class="btn btn-secondary btn-lg"
+            style="flex: 1; min-width: 150px;"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
+              </svg>
+            <span>Excel</span>
+          </button>
+          
+          <button
+            id="shareQRBtn"
+            class="btn btn-secondary btn-lg"
+            style="flex: 1; min-width: 150px;"
+            title="QR Kod ile Paylaş"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+              />
+            </svg>
+            <span data-i18n="share">Paylaş</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- QR Kod Modal -->
+      <div id="qrModal" class="modal hidden">
+        <div class="modal-content card">
+          <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 class="card-title" style="margin: 0;" data-i18n="shareWithQR">QR Kod ile Paylaş</h3>
+            <button id="closeQRModal" class="btn btn-secondary" style="padding: 8px 12px;">✕</button>
+          </div>
+          <div id="qrCodeContainer" style="display: flex; justify-content: center; padding: 20px; background: white; border-radius: 8px;">
+            <!-- QR Kod buraya gelecek -->
+          </div>
+          <p class="form-hint" style="text-align: center; margin-top: 12px;" data-i18n="scanToShare">
+            Bu QR kodu tarayarak vardiya programını paylaşabilirsiniz
+          </p>
+          <button id="copyLinkBtn" class="btn btn-primary btn-block" style="margin-top: 12px;">
+            <span data-i18n="copyLink">Linki Kopyala</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer
+        class="text-center"
+        style="padding: 20px 0; color: var(--text-muted); font-size: 0.875rem"
+      >
+        <p data-i18n="footer">Vardiya Takvimi &copy; 2024 | Ücretsiz ve açık kaynak</p>
+      </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/templates.js"></script>
+    <script src="/static/js/export.js"></script>
+    <script src="/static/js/app.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js')
+            .then((registration) => {
+              console.log('SW registered:', registration.scope);
+            })
+            .catch((error) => {
+              console.log('SW registration failed:', error);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>
