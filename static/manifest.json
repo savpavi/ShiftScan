@@ -1,7 +1,7 @@
 {
-  "name": "Vardiya Takvimi",
-  "short_name": "Vardiya",
-  "description": "Vardiya programınızı kolayca takvim dosyasına dönüştürün. OCR destekli, hızlı ve ücretsiz.",
+  "name": "Vardiya OCR - Görselinden Takvime",
+  "short_name": "Vardiya OCR",
+  "description": "Vardiya görselinizi AI destekli OCR ile tarayıp ICS takvim formatına dönüştürün.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",

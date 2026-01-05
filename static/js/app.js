@@ -350,32 +350,67 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================
-    // OCR TARAMA
+    // OCR TARAMA (Nanonets-OCR2-3B + Tesseract Fallback)
     // ============================================
-    
-    // Görüntü preprocessing fonksiyonu - DEVRE DIŞI (OCR kalitesini düşürüyor)
-    // Tesseract zaten kendi preprocessing yapıyor
-    function preprocessCanvas(canvas) {
-        // Preprocessing'i devre dışı bırak - doğrudan canvas'ı döndür
-        return canvas;
-        
-        /* Eski kod - gerekirse aktive et
-        const ctx = canvas.getContext('2d');
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        for (let i = 0; i < data.length; i += 4) {
-            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            const threshold = 200; // Daha yüksek threshold
-            const value = avg > threshold ? 255 : 0;
-            data[i] = value;
-            data[i + 1] = value;
-            data[i + 2] = value;
+
+    // Nanonets OCR API call
+    async function performNanonetsOCR(imageBase64) {
+        try {
+            const response = await fetch('/ocr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_base64: imageBase64 })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            return {
+                success: true,
+                text: result.text,
+                model: result.model || 'Nanonets-OCR2-3B'
+            };
+        } catch (error) {
+            console.error('Nanonets OCR error:', error);
+            return {
+                success: false,
+                text: '',
+                error: error.message
+            };
         }
-        
-        ctx.putImageData(imageData, 0, 0);
-        return canvas;
-        */
+    }
+
+    // Tesseract.js fallback OCR
+    async function performTesseractOCR(blob) {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const worker = await Tesseract.createWorker('eng', 1, {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const p = Math.round(m.progress * 100);
+                            elements.ocrProgressBar.style.width = `${p}%`;
+                            elements.ocrPercent.innerText = `${p}%`;
+                            elements.ocrStatusText.innerText = `Tesseract: %${p}`;
+                        }
+                    }
+                });
+
+                const ret = await worker.recognize(blob);
+                await worker.terminate();
+
+                resolve({
+                    success: true,
+                    text: ret.data.text,
+                    confidence: ret.data.confidence,
+                    model: 'Tesseract.js'
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     if (elements.scanCropBtn) {
@@ -386,92 +421,104 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                let canvas = cropper.getCroppedCanvas({
+                const canvas = cropper.getCroppedCanvas({
                     maxWidth: 2000,
                     maxHeight: 2000,
                     fillColor: '#fff'
                 });
-                
+
                 if (!canvas) {
                     showAlert('Görsel işlenemedi!', 'error');
                     return;
                 }
 
-                // Görüntü preprocessing uygula
-                canvas = preprocessCanvas(canvas);
+                // Progress göster
+                elements.ocrProgressContainer.classList.remove('hidden');
+                elements.ocrProgressBar.style.width = '0%';
+                elements.ocrPercent.innerText = '0%';
+                elements.ocrStatusText.innerText = 'Nanonets AI OCR...';
+                elements.shiftText.value = '';
 
+                // Canvas'ı base64'e çevir
+                const imageBase64 = canvas.toDataURL('image/png');
+
+                // Önce Nanonets OCR dene
+                console.log('Trying Nanonets-OCR2-3B...');
+                elements.ocrProgressBar.style.width = '20%';
+                elements.ocrPercent.innerText = '20%';
+
+                const nanonetsResult = await performNanonetsOCR(imageBase64);
+
+                if (nanonetsResult.success && nanonetsResult.text.trim().length > 0) {
+                    // Nanonets başarılı
+                    console.log('Nanonets OCR Success:', nanonetsResult.text);
+                    elements.ocrProgressBar.style.width = '100%';
+                    elements.ocrPercent.innerText = '100%';
+                    elements.ocrStatusText.innerText = 'Nanonets AI OCR tamamlandı!';
+
+                    const parsedShift = parseLineToShifts(nanonetsResult.text);
+                    elements.shiftText.value = parsedShift;
+
+                    toast.success(window.i18n?.currentLang === 'en'
+                        ? 'OCR completed with Nanonets AI!'
+                        : 'Nanonets AI ile OCR tamamlandı!');
+
+                    elements.shiftText.scrollIntoView({ behavior: 'smooth' });
+                    return;
+                }
+
+                // Nanonets başarısız, Tesseract.js fallback
+                console.log('Nanonets failed, falling back to Tesseract.js...');
+                console.log('Nanonets error:', nanonetsResult.error);
+                elements.ocrStatusText.innerText = 'Tesseract.js ile devam ediliyor...';
+                elements.ocrProgressBar.style.width = '30%';
+
+                // Canvas'ı blob'a çevir
                 canvas.toBlob(async (blob) => {
                     if (!blob) {
                         showAlert('Görsel dönüştürülemedi!', 'error');
+                        elements.ocrProgressContainer.classList.add('hidden');
                         return;
                     }
 
-                    // Progress göster
-                    elements.ocrProgressContainer.classList.remove('hidden');
-                    elements.ocrProgressBar.style.width = '0%';
-                    elements.ocrPercent.innerText = '0%';
-                    elements.ocrStatusText.innerText = window.i18n?.t('starting') || 'Başlatılıyor...';
-                    elements.shiftText.value = '';
-
                     try {
-                        // Sadece İngilizce dil - rakamlar için daha güvenilir
-                        const worker = await Tesseract.createWorker('eng', 1, {
-                            logger: m => {
-                                if (m.status === 'recognizing text') {
-                                    const p = Math.round(m.progress * 100);
-                                    elements.ocrProgressBar.style.width = `${p}%`;
-                                    elements.ocrPercent.innerText = `${p}%`;
-                                    elements.ocrStatusText.innerText = `${window.i18n?.t('scanning') || 'Taranıyor...'} %${p}`;
-                                } else if (m.status) {
-                                    elements.ocrStatusText.innerText = m.status;
-                                }
-                            }
-                        });
+                        const tesseractResult = await performTesseractOCR(blob);
 
-                        // Karakter whitelist KALDIRILDI - OCR kalitesini düşürüyordu
-                        // Tesseract kendi başına daha iyi sonuç veriyor
-
-                        const ret = await worker.recognize(blob);
-                        await worker.terminate();
-
-                        const fullText = ret.data.text;
-                        console.log('OCR Sonucu:', fullText);
-                        console.log('OCR Güven:', ret.data.confidence);
-
-                        // Metin boşsa uyar
-                        if (!fullText || fullText.trim().length === 0) {
+                        if (!tesseractResult.text || tesseractResult.text.trim().length === 0) {
                             elements.shiftText.value = 'OCR hiçbir metin algılayamadı. Lütfen:\n- Görselin daha net olduğundan emin olun\n- Sadece vardiya saatlerini içeren alanı seçin\n- Manuel olarak girin';
                             showAlert('Metin algılanamadı!', 'warning');
                         } else {
-                            const parsedShift = parseLineToShifts(fullText);
+                            const parsedShift = parseLineToShifts(tesseractResult.text);
                             elements.shiftText.value = parsedShift;
-                            
-                            // Güven düşükse uyar
-                            if (ret.data.confidence < 60) {
-                                toast.warning(window.i18n?.currentLang === 'en' 
-                                    ? 'Low confidence - please check and edit' 
+
+                            if (tesseractResult.confidence < 60) {
+                                toast.warning(window.i18n?.currentLang === 'en'
+                                    ? 'Low confidence - please check and edit'
                                     : 'Düşük güven - lütfen kontrol edip düzenleyin');
+                            } else {
+                                toast.info(window.i18n?.currentLang === 'en'
+                                    ? 'OCR completed with Tesseract (fallback)'
+                                    : 'Tesseract ile OCR tamamlandı (yedek)');
                             }
                         }
-                        
+
                         elements.ocrStatusText.innerText = window.i18n?.t('completed') || 'Tamamlandı!';
                         elements.ocrProgressBar.style.width = '100%';
                         elements.ocrPercent.innerText = '100%';
 
-                        // Textarea'ya kaydır
                         elements.shiftText.scrollIntoView({ behavior: 'smooth' });
 
-                    } catch (workerError) {
-                        console.error('Tesseract Worker Hatası:', workerError);
-                        showAlert('OCR işlemi başarısız oldu. Tekrar deneyin.', 'error');
+                    } catch (tesseractError) {
+                        console.error('Tesseract error:', tesseractError);
+                        showAlert('OCR işlemi başarısız oldu. Manuel giriş yapın.', 'error');
                         elements.ocrProgressContainer.classList.add('hidden');
                     }
-
                 }, 'image/png');
 
             } catch (err) {
                 console.error("OCR Hatası:", err);
                 showAlert(window.i18n?.t('scanError') || "Tarama sırasında bir hata oluştu.", 'error');
+                elements.ocrProgressContainer.classList.add('hidden');
             }
         });
     }
@@ -479,10 +526,79 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // METİN PARSE FONKSİYONLARI
     // ============================================
-    
+
+    // HTML tablo formatını parse et (Nanonets bazen tablo döndürüyor)
+    function parseHTMLTable(htmlText) {
+        const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+        const results = [];
+
+        // Tüm <td> ve <th> içeriklerini çıkar
+        const cellRegex = /<t[dh][^>]*>([^<]*)<\/t[dh]>/gi;
+        let match;
+        const cellContents = [];
+
+        while ((match = cellRegex.exec(htmlText)) !== null) {
+            const content = match[1].trim();
+            if (content) {
+                cellContents.push(content);
+            }
+        }
+
+        console.log('Tablo hücre içerikleri:', cellContents);
+
+        // Saat aralığı ve OFF pattern'lerini bul
+        const timeRangeRegex = /^(\d{1,2})[:\.]?(\d{2})[-–—](\d{1,2})[:\.]?(\d{2})$/;
+        // YI=Yıllık İzin, HT=Hafta Tatili, RT=Resmi Tatil, Üİ/UI=Ücretsiz İzin
+        const offRegex = /^(OFF|0FF|OEF|İZİN|IZIN|BOŞ|BOS|TATİL|TATIL|RAPOR|RAPORLU|LEAVE|FREE|HOLIDAY|FREI|CONGÉ|YI|Yİ|YL|YILLIK|HT|HAFTA\s*TATİLİ?|RT|RESMİ?\s*TATİL|Üİ|ÜI|UI|ÜCRETSİZ)$/i;
+
+        for (const content of cellContents) {
+            // Saat aralığı mı?
+            const timeMatch = content.match(timeRangeRegex);
+            if (timeMatch) {
+                const h1 = timeMatch[1].padStart(2, '0');
+                const m1 = timeMatch[2];
+                const h2 = timeMatch[3].padStart(2, '0');
+                const m2 = timeMatch[4];
+                results.push(`${h1}:${m1} - ${h2}:${m2}`);
+                continue;
+            }
+
+            // OFF/İZİN mi?
+            if (offRegex.test(content)) {
+                results.push('OFF');
+                continue;
+            }
+        }
+
+        console.log('Tablo parse sonucu:', results);
+
+        if (results.length === 0) {
+            return `Vardiya formatı algılanamadı. Ham veri:\n\n${htmlText}`;
+        }
+
+        // Günleri oluştur
+        let result = '';
+        const count = Math.min(results.length, 7);
+        for (let i = 0; i < count; i++) {
+            result += `${days[i]} ${results[i]}\n`;
+        }
+
+        if (count < 7) {
+            result += `\n--- ${7 - count} gün eksik, lütfen tamamlayın ---`;
+        }
+
+        return result.trim();
+    }
+
     function parseLineToShifts(ocrText) {
         console.log('OCR Ham Metin:', ocrText);
-        
+
+        // HTML tablo formatını kontrol et ve parse et
+        if (ocrText.includes('<table') || ocrText.includes('<td>') || ocrText.includes('<th>')) {
+            console.log('HTML tablo formatı algılandı, parse ediliyor...');
+            return parseHTMLTable(ocrText);
+        }
+
         // Metni temizle ve normalleştir
         let text = ocrText
             .replace(/\r\n/g, ' ')
@@ -500,8 +616,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Saat aralığı regex (09:00-18:00, 09.00-18.00, vb.)
         const timeRangeRegex = /^(\d{1,2})[:\.]?(\d{2})[-–—](\d{1,2})[:\.]?(\d{2})$/;
         
-        // OFF varyasyonları
-        const offRegex = /^(OFF|0FF|OEF|İZİN|IZIN|IZİN|İZIN|BOŞ|BOS|B0Ş|TATIL|TATİL|RAPOR|RAP0R|LEAVE|FREE|HOLIDAY|FREI|CONGÉ|CONGE|YI|Yl)$/i;
+        // YI=Yıllık İzin, HT=Hafta Tatili, RT=Resmi Tatil, Üİ/UI=Ücretsiz İzin
+        const offRegex = /^(OFF|0FF|OEF|İZİN|IZIN|IZİN|İZIN|BOŞ|BOS|B0Ş|TATIL|TATİL|RAPOR|RAP0R|RAPORLU|LEAVE|FREE|HOLIDAY|FREI|CONGÉ|CONGE|YI|Yİ|Yl|YL|YILLIK|HT|RT|Üİ|ÜI|UI|ÜCRETSİZ)$/i;
         
         for (let i = 0; i < tokens.length; i++) {
             const token = tokens[i];

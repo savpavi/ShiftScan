@@ -19,8 +19,8 @@ const i18n = {
     translations: {
         tr: {
             // Genel
-            appTitle: 'Vardiya Takvimi',
-            appSubtitle: 'Vardiya programınızı takvim dosyasına dönüştürün',
+            appTitle: 'Vardiya OCR',
+            appSubtitle: 'Vardiya görselinizi AI ile tarayıp ICS takvim dosyasına dönüştürün',
             loading: 'Yükleniyor...',
             planCreating: 'Plan oluşturuluyor...',
             aiPlanCreating: 'AI plan oluşturuyor...',
@@ -82,7 +82,7 @@ Pazar 10:00 - 18:00`,
             planDownloadError: 'Plan oluşturuldu ancak indirilemedi.',
             
             // Footer
-            footer: 'Vardiya Takvimi © 2024 | Ücretsiz ve açık kaynak',
+            footer: 'Vardiya OCR © 2024 | Ücretsiz ve açık kaynak',
             
             // Şablonlar
             templates: 'Hazır Şablonlar',
@@ -120,8 +120,8 @@ Pazar 10:00 - 18:00`,
         
         en: {
             // General
-            appTitle: 'Shift Calendar',
-            appSubtitle: 'Convert your shift schedule to calendar file',
+            appTitle: 'Shift OCR',
+            appSubtitle: 'Scan your shift image with AI and convert to ICS calendar file',
             loading: 'Loading...',
             planCreating: 'Creating plan...',
             aiPlanCreating: 'AI is creating plan...',
@@ -183,7 +183,7 @@ Sun 10:00 - 18:00`,
             planDownloadError: 'Plan created but could not be downloaded.',
             
             // Footer
-            footer: 'Shift Calendar © 2024 | Free and open source',
+            footer: 'Shift OCR © 2024 | Free and open source',
             
             // Templates
             templates: 'Quick Templates',
@@ -222,8 +222,8 @@ Sun 10:00 - 18:00`,
         // Almanca (German)
         de: {
             // Allgemein
-            appTitle: 'Schichtkalender',
-            appSubtitle: 'Konvertieren Sie Ihren Schichtplan in eine Kalenderdatei',
+            appTitle: 'Schicht OCR',
+            appSubtitle: 'Scannen Sie Ihr Schichtbild mit KI und konvertieren Sie es in eine ICS-Kalenderdatei',
             loading: 'Laden...',
             planCreating: 'Plan wird erstellt...',
             aiPlanCreating: 'KI erstellt Plan...',
@@ -285,7 +285,7 @@ So 10:00 - 18:00`,
             planDownloadError: 'Plan erstellt, konnte aber nicht heruntergeladen werden.',
             
             // Footer
-            footer: 'Schichtkalender © 2024 | Kostenlos und Open Source',
+            footer: 'Schicht OCR © 2024 | Kostenlos und Open Source',
             
             // Vorlagen
             templates: 'Schnellvorlagen',
@@ -318,8 +318,8 @@ So 10:00 - 18:00`,
         // Fransızca (French)
         fr: {
             // Général
-            appTitle: 'Calendrier des Équipes',
-            appSubtitle: 'Convertissez votre planning en fichier calendrier',
+            appTitle: 'OCR Planning',
+            appSubtitle: 'Scannez votre image de planning avec IA et convertissez en fichier calendrier ICS',
             loading: 'Chargement...',
             planCreating: 'Création du plan...',
             aiPlanCreating: "L'IA crée le plan...",
@@ -381,7 +381,7 @@ Dim 10:00 - 18:00`,
             planDownloadError: 'Plan créé mais impossible à télécharger.',
             
             // Pied de page
-            footer: 'Calendrier des Équipes © 2024 | Gratuit et open source',
+            footer: 'OCR Planning © 2024 | Gratuit et open source',
             
             // Modèles
             templates: 'Modèles rapides',
@@ -463,7 +463,7 @@ Dim 10:00 - 18:00`,
         });
 
         // Title güncelle
-        document.title = this.t('appTitle') + ' | ' + (this.currentLang === 'tr' ? 'Kolay Vardiya Planlayıcı' : 'Easy Shift Planner');
+        document.title = this.t('appTitle') + ' | ' + (this.currentLang === 'tr' ? 'Görselinden Takvime' : 'Image to Calendar');
     }
 };
 

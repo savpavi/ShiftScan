@@ -17,13 +17,19 @@ import platform
 # Environment variables
 load_dotenv()
 
-# Tesseract configuration for cross-platform compatibility
+# Tesseract configuration for cross-platform compatibility (fallback)
 import pytesseract
 if platform.system() == "Windows":
     pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 # Linux (Docker) uses default path, no configuration needed
 
-app = FastAPI(title="Shift to ICS Converter", description="Vardiya programını takvime dönüştüren uygulama")
+# Nanonets OCR Service (primary)
+from services.ocr_service import process_ocr_image, is_ocr_available
+
+app = FastAPI(
+    title="Vardiya OCR to ICS",
+    description="Vardiya görselinizi AI destekli OCR ile tarayıp ICS takvim formatına dönüştüren web uygulaması"
+)
 
 # Google Gemini API Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -47,6 +53,10 @@ class ShiftEvent(BaseModel):
 class Activity(BaseModel):
     value: int
     type: str  # 'hours' veya 'days'
+
+class OCRRequest(BaseModel):
+    image_base64: str
+    prompt: Optional[str] = None
 
 class PlanRequest(BaseModel):
     start_date: str
@@ -647,13 +657,77 @@ END:VCALENDAR"""
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"İndirme hatası: {str(e)}")
 
+@app.post("/ocr")
+async def perform_ocr(request: OCRRequest):
+    """
+    OCR endpoint using Nanonets-OCR2-3B via HuggingFace Space
+
+    Args:
+        request: OCRRequest with image_base64 and optional prompt
+
+    Returns:
+        OCR result with extracted text
+    """
+    try:
+        if not is_ocr_available():
+            raise HTTPException(
+                status_code=503,
+                detail="OCR service unavailable. gradio_client not installed."
+            )
+
+        print("INFO: OCR request received")
+        print(f"INFO: Image data length: {len(request.image_base64)} chars")
+
+        # Default prompt optimized for shift schedules
+        prompt = request.prompt or """Extract all text from this image.
+Focus on:
+- Time ranges (like 09:00-18:00, 9:00-17:00)
+- Day names or abbreviations
+- OFF, leave, izin, tatil indicators
+Return the raw text exactly as it appears, preserving the layout."""
+
+        # Process through Nanonets OCR
+        result = await process_ocr_image(request.image_base64, prompt)
+
+        if result['success']:
+            print(f"SUCCESS: OCR completed, text length: {len(result['text'])}")
+            return {
+                "status": "success",
+                "text": result['text'],
+                "model": "Nanonets-OCR2-3B"
+            }
+        else:
+            print(f"ERROR: OCR failed: {result['error']}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"OCR processing failed: {result['error']}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR: Unexpected OCR error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OCR error: {str(e)}")
+
+
+@app.get("/ocr/status")
+async def ocr_status():
+    """Check OCR service availability"""
+    return {
+        "available": is_ocr_available(),
+        "model": "Nanonets-OCR2-3B",
+        "provider": "HuggingFace Space (prithivMLmods/Multimodal-OCR)"
+    }
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {
-        "status": "healthy", 
+        "status": "healthy",
         "message": "Shift to ICS Converter is running",
-        "gemini_configured": bool(GOOGLE_API_KEY and GOOGLE_API_KEY != "your_gemini_api_key_here")
+        "gemini_configured": bool(GOOGLE_API_KEY and GOOGLE_API_KEY != "your_gemini_api_key_here"),
+        "ocr_available": is_ocr_available()
     }
 
 if __name__ == "__main__":

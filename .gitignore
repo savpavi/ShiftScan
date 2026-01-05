@@ -62,3 +62,4 @@ htmlcov/
 
 # Snapshots (VS Code backup)
 .snapshots/
+.claude/
