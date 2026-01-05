@@ -1,6 +1,8 @@
-# Vardiya Takvim Oluşturucusu
+# ShiftScan
 
-Vardiya programını saniyeler içinde takvime dönüştüren web uygulaması.
+Vardiya fotoğrafını saniyeler içinde ICS takvim dosyasına dönüştüren web uygulaması.
+
+**Demo:** [vardiya.egebostanci.me](https://vardiya.egebostanci.me)
 
 ## Özellikler
 
@@ -8,88 +10,52 @@ Vardiya programını saniyeler içinde takvime dönüştüren web uygulaması.
 - Metin formatında vardiya girişi
 - ICS takvim dosyası oluşturma
 - Modern ve responsive arayüz
-- FastAPI backend ile sunucu
+- FastAPI backend
 
 ## Kurulum
 
-1. Python'un kurulu olduğundan emin olun ( Python 3.8+ önerilir)
+1. Python 3.8+ gerekli
 
-2. Gerekli paketleri yükleyin:
+2. Bağımlılıkları yükleyin:
 ```bash
 pip install -r requirements.txt
 ```
 
+3. (Opsiyonel) Gemini API için `.env` dosyası oluşturun:
+```
+GOOGLE_API_KEY=your_api_key_here
+```
+
 ## Çalıştırma
 
-Geliştirme modunda başlatmak için:
 ```bash
 python main.py
 ```
 
-Veya uvicorn kullanarak:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
 Uygulama http://localhost:8000 adresinde çalışacaktır.
-
-## Proje Yapısı
-
-```
-vardiya-takvim-olu-turucusu/
-├── main.py              # FastAPI uygulama dosyası
-├── requirements.txt     # Python bağımlılıkları
-├── templates/           # HTML şablonları
-│   └── index.html      # Ana sayfa
-├── static/              # Statik dosyalar
-│   ├── css/
-│   │   └── style.css    # Özel stiller
-│   └── js/
-│       └── app.js       # Frontend JavaScript
-└── README.md            # Bu dosya
-```
 
 ## Kullanım
 
-1. **Tarih Seçimi**: Haftanın başlangıç tarihini ( Pazartesi) seçin
-2. **Görsel Yükleme**: Vardiya programının görselini yükleyin ve kırpın
-3. **OCR Taraması**: "Seçili Alanı Tara" butonuyla metni çıkarın
-4. **Manuel Giriş**: Veya metin alanına vardiya bilgilerini manuel girin
-5. **Dönüştür**: "Önizle ve Dönüştür" butonuyla ICS dosyasını oluşturun
-6. **İndir**: Oluşturulan takvim dosyasını indirin
+1. Haftanın başlangıç tarihini seçin
+2. Vardiya programı görselini yükleyin ve kırpın
+3. "Seçili Alanı Tara" ile OCR yapın (veya manuel girin)
+4. "Önizle ve Dönüştür" ile ICS oluşturun
+5. Takvim dosyasını indirin
 
 ## Desteklenen Formatlar
 
-### Metin Formatı
 ```
 Pzt 08:00 - 17:00
 Salı OFF
 Çarşamba 14:00 - 22:00
-Perşembe 08:00 - 17:00
-Cuma OFF
-Cmt 10:00 - 18:00
-Paz 10:00 - 18:00
 ```
 
 ### Gün Kısaltmaları
-- Pzt / Pazartesi / Mon
-- Sal / Salı / Sali / Tue  
-- Çar / Çarşamba / Carsamba / Wed
-- Per / Perşembe / Persembe / Thu
-- Cum / Cuma / Fri
-- Cmt / Cumartesi / Sat
-- Paz / Pazar / Sun
+Pzt, Sal, Çar, Per, Cum, Cmt, Paz (TR)
+Mon, Tue, Wed, Thu, Fri, Sat, Sun (EN)
 
-### İzin Tatil Anahtar Kelimeleri
-- OFF, İZİN, IZIN, BOŞ, BOS, TATİL, RAPOR
-
-## Gelecek Özellikler
-
-- Google Gemini API entegrasyonu ile akıllı planlama
-- Çoklu hafta desteği
-- Excel/CSV dosya import/export
-- Veritabanı kayıt sistemi
-- Kullanıcı profilleri
+### İzin/Tatil
+OFF, İZİN, BOŞ, TATİL, RAPOR
 
 ## Lisans
 
