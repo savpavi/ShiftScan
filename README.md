@@ -1,62 +1,64 @@
 # ShiftScan
 
-Vardiya fotoğrafını saniyeler içinde ICS takvim dosyasına dönüştüren web uygulaması.
+Convert your shift schedule photo to an ICS calendar file in seconds.
 
 **Demo:** [vardiya.egebostanci.me](https://vardiya.egebostanci.me)
 
-## Özellikler
+[Türkçe](README_TR.md)
 
-- OCR ile görsellerden vardiya metni çıkarma
-- Metin formatında vardiya girişi
-- ICS takvim dosyası oluşturma
-- Modern ve responsive arayüz
+## Features
+
+- OCR extraction from shift schedule images
+- Manual text input support
+- ICS calendar file generation
+- Modern, responsive UI
 - FastAPI backend
 
-## Kurulum
+## Installation
 
-1. Python 3.8+ gerekli
+1. Python 3.8+ required
 
-2. Bağımlılıkları yükleyin:
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. (Opsiyonel) Gemini API için `.env` dosyası oluşturun:
+3. (Optional) Create `.env` file for Gemini API:
 ```
 GOOGLE_API_KEY=your_api_key_here
 ```
 
-## Çalıştırma
+## Usage
 
 ```bash
 python main.py
 ```
 
-Uygulama http://localhost:8000 adresinde çalışacaktır.
+App runs at http://localhost:8000
 
-## Kullanım
+## How It Works
 
-1. Haftanın başlangıç tarihini seçin
-2. Vardiya programı görselini yükleyin ve kırpın
-3. "Seçili Alanı Tara" ile OCR yapın (veya manuel girin)
-4. "Önizle ve Dönüştür" ile ICS oluşturun
-5. Takvim dosyasını indirin
+1. Select the week's start date
+2. Upload and crop your shift schedule image
+3. Click "Scan" for OCR (or enter manually)
+4. Click "Preview & Convert" to generate ICS
+5. Download your calendar file
 
-## Desteklenen Formatlar
+## Supported Formats
 
 ```
-Pzt 08:00 - 17:00
-Salı OFF
-Çarşamba 14:00 - 22:00
+Mon 08:00 - 17:00
+Tue OFF
+Wed 14:00 - 22:00
 ```
 
-### Gün Kısaltmaları
-Pzt, Sal, Çar, Per, Cum, Cmt, Paz (TR)
-Mon, Tue, Wed, Thu, Fri, Sat, Sun (EN)
+### Day Abbreviations
+- English: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+- Turkish: Pzt, Sal, Çar, Per, Cum, Cmt, Paz
 
-### İzin/Tatil
-OFF, İZİN, BOŞ, TATİL, RAPOR
+### Day Off Keywords
+OFF, LEAVE, REST, HOLIDAY
 
-## Lisans
+## License
 
 MIT License
