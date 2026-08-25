@@ -3,7 +3,7 @@ AI Planner Service
 Google Gemini API ile akıllı aktivite planlama
 """
 
-from typing import Any, List, Tuple, Dict, Optional
+from typing import Any, List, Tuple, Dict
 from datetime import datetime, timedelta
 import os
 import json
@@ -165,55 +165,60 @@ KURALLAR:
 async def get_gemini_activity_plan(
     free_slots: List[Tuple[str, datetime, datetime]],
     activities: Dict,
-    timeout: float = 30.0
-) -> Optional[List[ActivityPlanItem]]:
+    timeout: float = 30.0,
+) -> List[ActivityPlanItem]:
     """
-    Gemini API'den aktivite planı alır
-    
+    Gemini'den aktivite dagilimi ister ve dogrulanmis satirlari dondurur.
+
+    Her hata (anahtar yok, timeout, ag hatasi, bozuk JSON, gecersiz satir) bos
+    liste ile sonuclanir; cagiran taraf kural tabanli plana duser.
+
     Args:
-        free_slots: Boş zaman slotları
+        free_slots: Bos zaman slotlari
         activities: Aktivite hedefleri
-        timeout: API timeout süresi
-    
+        timeout: API timeout suresi (saniye)
+
     Returns:
-        Aktivite planı listesi veya None
+        Dogrulanmis plan satirlari (bos olabilir)
     """
     if not is_gemini_configured():
-        print("WARNING: Gemini API not configured, returning None")
-        return None
-    
+        print("INFO: Gemini yapilandirilmamis, kural tabanli plan kullanilacak")
+        return []
+
     prompt = create_gemini_activity_prompt(free_slots, activities)
-    
+
     try:
+        started = time.time()
         model = genai.GenerativeModel('gemini-2.0-flash')
-        
         response = await asyncio.wait_for(
             asyncio.to_thread(model.generate_content, prompt),
-            timeout=timeout
+            timeout=timeout,
         )
-        
-        if not response.text:
-            print("ERROR: Gemini API returned empty response")
-            return None
-        
-        # JSON parse et
-        json_text = response.text.strip()
-        if "```json" in json_text:
-            json_text = json_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in json_text:
-            json_text = json_text.split("```")[1].split("```")[0].strip()
-        
-        return parse_activity_plan(json.loads(json_text))
-        
+        print(f"INFO: Gemini yanit verdi ({time.time() - started:.2f}s)")
     except asyncio.TimeoutError:
-        print(f"ERROR: Gemini API timeout after {timeout} seconds")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"ERROR: Failed to parse Gemini JSON response: {e}")
-        return None
-    except Exception as e:
-        print(f"ERROR: Gemini API error: {e}")
-        return None
+        print(f"WARNING: Gemini {timeout}s icinde yanit vermedi")
+        return []
+    except Exception as exc:
+        print(f"WARNING: Gemini cagrisi basarisiz: {type(exc).__name__}: {exc}")
+        return []
+
+    if not response.text:
+        print("WARNING: Gemini bos yanit dondu")
+        return []
+
+    json_text = response.text.strip()
+    if "```json" in json_text:
+        json_text = json_text.split("```json")[1].split("```")[0].strip()
+    elif "```" in json_text:
+        json_text = json_text.split("```")[1].split("```")[0].strip()
+
+    try:
+        raw_plan = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        print(f"WARNING: Gemini gecersiz JSON dondu: {exc}")
+        return []
+
+    return parse_activity_plan(raw_plan)
 
 
 def apply_activity_plan(

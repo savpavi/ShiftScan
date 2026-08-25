@@ -30,7 +30,7 @@ def plan_payload(**overrides) -> dict:
 @pytest.fixture(autouse=True)
 def no_api_key(monkeypatch):
     """Testler gercek Gemini cagrisi yapmasin."""
-    monkeypatch.setattr(main, "GOOGLE_API_KEY", None)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
 
 def test_generate_plan_falls_back_when_ai_unavailable():
@@ -38,6 +38,7 @@ def test_generate_plan_falls_back_when_ai_unavailable():
     response = client.post("/generate-plan", json=plan_payload())
 
     assert response.status_code == 200
+    assert response.json()["plan_source"] == "fallback"
     assert response.json()["ics_content"].startswith("BEGIN:VCALENDAR")
 
 

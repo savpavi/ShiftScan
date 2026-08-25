@@ -8,8 +8,6 @@ import base64
 import tempfile
 import os
 from typing import Optional
-from PIL import Image
-import io
 
 # Gradio Client import
 try:

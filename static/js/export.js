@@ -8,35 +8,43 @@ const exportModule = {
     jsPDFLoaded: false,
     xlsxLoaded: false,
 
+    // CDN'den betik yukler; SRI olmadan yukleme yapilmaz
+    loadScript(src, integrity) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.integrity = integrity;
+            script.crossOrigin = 'anonymous';
+            script.referrerPolicy = 'no-referrer';
+            script.onload = () => resolve(true);
+            script.onerror = () => reject(new Error(`Yuklenemedi: ${src}`));
+            document.head.appendChild(script);
+        });
+    },
+
     // PDF export için jsPDF'i lazy load et
     async loadJsPDF() {
         if (this.jsPDFLoaded) return true;
-        
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-            script.onload = () => {
-                this.jsPDFLoaded = true;
-                resolve(true);
-            };
-            script.onerror = () => reject(new Error('jsPDF yüklenemedi'));
-            document.head.appendChild(script);
+
+        return this.loadScript(
+            'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+            'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk',
+        ).then(() => {
+            this.jsPDFLoaded = true;
+            return true;
         });
     },
 
     // Excel export için SheetJS'i lazy load et
     async loadXLSX() {
         if (this.xlsxLoaded) return true;
-        
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
-            script.onload = () => {
-                this.xlsxLoaded = true;
-                resolve(true);
-            };
-            script.onerror = () => reject(new Error('SheetJS yüklenemedi'));
-            document.head.appendChild(script);
+
+        return this.loadScript(
+            'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js',
+            'sha384-QCIdq2UMVEoSRhR3ZWZwdz2/pivLowr+eokFMdYyukq7qI26VYRxFa4Nl6FKetmL',
+        ).then(() => {
+            this.xlsxLoaded = true;
+            return true;
         });
     },
 

@@ -7,7 +7,8 @@ from typing import List, Tuple, Dict
 from datetime import date, datetime, time, timedelta
 import pytz
 
-from .shift_parser import DAY_NAMES
+# Gun adlari (Pazartesi = 0). Vardiya metni ayristirmasi tarayicida yapilir.
+DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 
 # Gece aktivite yasagi: bu saatten once slot uretilmez (gece vardiyasi gunleri haric)
 NIGHT_END_HOUR = 7
