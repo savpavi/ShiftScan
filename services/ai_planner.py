@@ -3,12 +3,14 @@ AI Planner Service
 Google Gemini API ile akıllı aktivite planlama
 """
 
-from typing import List, Tuple, Dict, Optional
+from typing import Any, List, Tuple, Dict, Optional
 from datetime import datetime, timedelta
 import os
 import json
 import asyncio
 import time
+
+from pydantic import BaseModel, Field, ValidationError
 
 # Gemini API yapılandırması opsiyonel
 try:
@@ -27,6 +29,49 @@ ACTIVITY_MAP = {
     'social': 'Sosyal Yaşam / Arkadaşlar',
     'gaming': 'Oyun / Dinlenme'
 }
+
+
+# Tek bir aktivite yerlestirmesi icin ust sinir (bir gunun tamami)
+MAX_ACTIVITY_HOURS = 24
+
+
+class ActivityPlanItem(BaseModel):
+    """Modelin dondurdugu tek bir plan satiri."""
+
+    day: str
+    activity: str
+    hours: float = Field(gt=0, le=MAX_ACTIVITY_HOURS)
+
+
+def parse_activity_plan(raw: Any) -> List[ActivityPlanItem]:
+    """
+    Dil modelinden gelen ham plan ciktisini dogrular.
+
+    Model ciktisi guvenilmez: alan eksik olabilir, sayi string gelebilir,
+    liste yerine dict donebilir. Gecerli satirlar korunur, gecersizler
+    atlanir; hicbir durumda exception yukselmez.
+
+    Args:
+        raw: json.loads ciktisi (herhangi bir tip olabilir)
+
+    Returns:
+        Dogrulanmis plan satirlari (bos olabilir)
+    """
+    if not isinstance(raw, list):
+        print(f"WARNING: Plan ciktisi liste degil ({type(raw).__name__}), yok sayildi")
+        return []
+
+    items: List[ActivityPlanItem] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            print(f"WARNING: Plan satiri dict degil ({type(entry).__name__}), atlandi")
+            continue
+        try:
+            items.append(ActivityPlanItem(**entry))
+        except ValidationError as exc:
+            print(f"WARNING: Gecersiz plan satiri atlandi: {entry} ({exc.error_count()} hata)")
+
+    return items
 
 
 def is_gemini_configured() -> bool:
@@ -121,7 +166,7 @@ async def get_gemini_activity_plan(
     free_slots: List[Tuple[str, datetime, datetime]],
     activities: Dict,
     timeout: float = 30.0
-) -> Optional[List[Dict]]:
+) -> Optional[List[ActivityPlanItem]]:
     """
     Gemini API'den aktivite planı alır
     
@@ -158,8 +203,7 @@ async def get_gemini_activity_plan(
         elif "```" in json_text:
             json_text = json_text.split("```")[1].split("```")[0].strip()
         
-        activity_plan = json.loads(json_text)
-        return activity_plan
+        return parse_activity_plan(json.loads(json_text))
         
     except asyncio.TimeoutError:
         print(f"ERROR: Gemini API timeout after {timeout} seconds")
@@ -174,14 +218,14 @@ async def get_gemini_activity_plan(
 
 def apply_activity_plan(
     free_slots: List[Tuple[str, datetime, datetime]],
-    activity_plan: List[Dict]
+    activity_plan: List[ActivityPlanItem]
 ) -> List[Tuple[datetime, datetime, str]]:
     """
     Aktivite planını boş slotlara çakışma olmadan yerleştirir
     
     Args:
         free_slots: Boş zaman slotları
-        activity_plan: Gemini'den gelen aktivite planı
+        activity_plan: Dogrulanmis plan satirlari (bkz. parse_activity_plan)
     
     Returns:
         Aktivite etkinlikleri listesi
@@ -201,18 +245,19 @@ def apply_activity_plan(
     
     # Aktiviteleri yerleştir
     for plan_item in activity_plan:
-        day = plan_item.get('day')
-        activity_key = plan_item.get('activity')
-        hours_needed = plan_item.get('hours', 0)
-        
+        day = plan_item.day
+        activity_key = plan_item.activity
+        hours_needed = plan_item.hours
+
         # Aktivite adını bul
         activity_name = None
         for key, name in ACTIVITY_MAP.items():
-            if name.lower() == activity_key.lower() or key.lower() == activity_key.lower():
+            if activity_key.lower() in (name.lower(), key.lower()):
                 activity_name = name
                 break
-        
-        if not activity_name or hours_needed <= 0:
+
+        if not activity_name:
+            print(f"WARNING: Bilinmeyen aktivite '{activity_key}' atlandi")
             continue
         
         # O gün için uygun slotları bul

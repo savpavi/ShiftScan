@@ -28,6 +28,8 @@ from .ics_generator import (
 )
 
 from .ai_planner import (
+    ActivityPlanItem,
+    parse_activity_plan,
     is_gemini_configured,
     configure_gemini,
     create_gemini_activity_prompt,
@@ -60,6 +62,8 @@ __all__ = [
     'clean_ics_response',
     
     # ai_planner
+    'ActivityPlanItem',
+    'parse_activity_plan',
     'is_gemini_configured',
     'configure_gemini',
     'create_gemini_activity_prompt',

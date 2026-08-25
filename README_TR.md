@@ -57,6 +57,33 @@ Mon, Tue, Wed, Thu, Fri, Sat, Sun (EN)
 ### İzin/Tatil
 OFF, İZİN, BOŞ, TATİL, RAPOR
 
+## Gizlilik
+
+**Taradığınız görseller üçüncü tarafa gönderilir.** OCR, bu projeye ait olmayan,
+bağımsız bir kişi tarafından işletilen `prithivMLmods/Multimodal-OCR` adlı public
+HuggingFace Space üzerinde çalışır. Bir vardiya çizelgesi fotoğrafı işvereninizi,
+adınızı ve çalışma saatlerinizi açık edebilir.
+
+Bu sizin için uygun değilse:
+
+- görsel tarama yerine manuel metin girişini kullanın, veya
+- OCR modelini kendiniz barındırıp `services/ocr_service.py` içindeki
+  `MULTIMODAL_OCR_SPACE` değerini kendi sunucunuza yönlendirin.
+
+Uygulama yüklenen görselleri saklamaz. Görsel, istek süresince geçici bir dosyaya
+yazılır ve hemen ardından silinir.
+
+AI planlayıcı açıkken boş zaman özetiniz ve aktivite hedefleriniz Google Gemini'ye
+gönderilir. Görsel Gemini'ye hiçbir zaman gönderilmez. `GOOGLE_API_KEY` yoksa
+uygulama kural tabanlı planlayıcıya düşer ve çalışmaya devam eder.
+
+## Testler
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Lisans
 
 MIT License
