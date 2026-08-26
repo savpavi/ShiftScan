@@ -15,6 +15,7 @@ load_dotenv()
 from services.ocr_service import process_ocr_image, is_ocr_available
 from services.timeline_builder import build_timeline, find_free_slots
 from services.ics_generator import generate_final_ics
+from services.models import CalendarLabels
 from services.ai_planner import (
     apply_activity_plan,
     configure_gemini,
@@ -61,6 +62,7 @@ class PlanRequest(BaseModel):
     shift_text: str
     shift_events: List[ShiftEvent]
     activities: Dict[str, Activity]
+    labels: CalendarLabels = CalendarLabels()
 
 @app.get("/")
 async def home(request: Request):
@@ -112,7 +114,7 @@ async def generate_plan(plan_data: PlanRequest):
         print(f"INFO: {len(activity_events)} aktivite yerlestirildi ({plan_source})")
 
         # 4. ICS
-        final_ics = generate_final_ics(timeline, activity_events)
+        final_ics = generate_final_ics(timeline, activity_events, plan_data.labels)
 
         return {
             "status": "success",

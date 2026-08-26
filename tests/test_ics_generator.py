@@ -20,8 +20,9 @@ ACTIVITIES = [(dt(24, 18), dt(24, 20), "Spor")]
 
 def generate():
     from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
 
-    return generate_final_ics(TIMELINE, ACTIVITIES)
+    return generate_final_ics(TIMELINE, ACTIVITIES, CalendarLabels(shift="Vardiya", sleep="Uyku"))
 
 
 def test_calendar_is_wrapped_correctly():
@@ -71,24 +72,27 @@ def test_events_have_unique_uids():
 
 def test_special_characters_in_summary_are_escaped():
     from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
 
-    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "Spor, Kitap; Oyun")])
+    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "Spor, Kitap; Oyun")], CalendarLabels())
 
     assert "SUMMARY:Spor\\, Kitap\\; Oyun" in ics
 
 
 def test_backslash_in_summary_is_escaped_first():
     from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
 
-    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "C:\\Plan")])
+    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "C:\\Plan")], CalendarLabels())
 
     assert "SUMMARY:C:\\\\Plan" in ics
 
 
 def test_newline_in_summary_cannot_inject_a_property():
     from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
 
-    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "Spor\nDESCRIPTION:enjekte")])
+    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "Spor\nDESCRIPTION:enjekte")], CalendarLabels())
 
     assert ics.count("BEGIN:VEVENT") == 1
     assert "\nDESCRIPTION:enjekte" not in ics
@@ -103,8 +107,9 @@ def test_every_event_has_a_dtstamp():
 
 def test_lines_are_folded_at_75_octets():
     from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
 
-    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "A" * 200)])
+    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "A" * 200)], CalendarLabels())
 
     for line in ics.split("\r\n"):
         assert len(line.encode("utf-8")) <= 75, line
@@ -112,8 +117,9 @@ def test_lines_are_folded_at_75_octets():
 
 def test_folded_continuation_lines_start_with_a_space():
     from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
 
-    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "A" * 200)])
+    ics = generate_final_ics([], [(dt(24, 18), dt(24, 20), "A" * 200)], CalendarLabels())
 
     summary_lines = [ln for ln in ics.split("\r\n") if ln.startswith("SUMMARY:")]
     assert len(summary_lines) == 1
@@ -130,10 +136,33 @@ def test_lines_end_with_crlf():
 
 def test_events_starting_in_the_same_minute_get_distinct_uids():
     from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
 
     ics = generate_final_ics(
-        [], [(dt(24, 18), dt(24, 20), "Spor"), (dt(24, 18), dt(24, 19), "Kitap")]
+        [], [(dt(24, 18), dt(24, 20), "Spor"), (dt(24, 18), dt(24, 19), "Kitap")], CalendarLabels()
     )
 
     uids = [ln for ln in ics.split("\r\n") if ln.startswith("UID:")]
     assert len(set(uids)) == 2
+
+
+def test_block_labels_come_from_the_request():
+    from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
+
+    ics = generate_final_ics(
+        TIMELINE, [], CalendarLabels(shift="Schicht", sleep="Schlaf")
+    )
+
+    assert "SUMMARY:Schicht" in ics
+    assert "SUMMARY:Schlaf" in ics
+    assert "SUMMARY:Vardiya" not in ics
+
+
+def test_labels_are_escaped_like_any_other_text():
+    from services.ics_generator import generate_final_ics
+    from services.models import CalendarLabels
+
+    ics = generate_final_ics(TIMELINE, [], CalendarLabels(shift="Work, shift", sleep="Sleep"))
+
+    assert "SUMMARY:Work\\, shift" in ics
