@@ -63,3 +63,68 @@ def test_night_hours_excluded_on_normal_shift_day():
 
     assert monday, "Pazartesi icin slot bekleniyordu"
     assert all(start.hour >= 7 for _, start, _ in monday)
+
+
+# --- Uyku blogu ve gece filtresi (backlog madde 7 ve 9) ---
+
+
+def local_shift(start_day: int, start_hour: int, end_day: int, end_hour: int) -> dict:
+    """Yerel saatle (TRT) vardiya - gece vardiyasi iki gune yayilabilir."""
+    return {
+        "start": f"2026-08-{start_day:02d}T{start_hour:02d}:00:00+03:00",
+        "end": f"2026-08-{end_day:02d}T{end_hour:02d}:00:00+03:00",
+    }
+
+
+def sleep_blocks(timeline):
+    return [(s, e) for s, e, kind in timeline if kind == "sleep"]
+
+
+def test_sleep_falls_on_the_night_after_the_shift_not_before_it():
+    """Pazartesi 09-18 calisan kisi Sali'ye baglayan gece uyur, Pazartesi sabahi degil."""
+    timeline = build_timeline([local_shift(24, 9, 24, 18)])
+
+    (start, end), = sleep_blocks(timeline)
+
+    assert start == IST.localize(datetime(2026, 8, 25, 0, 30))
+    assert end == IST.localize(datetime(2026, 8, 25, 8, 30))
+
+
+def test_consecutive_shifts_do_not_produce_overlapping_sleep():
+    """Sali aksam + Carsamba gunduz vardiyasi ayni geceye iki uyku yazmamali."""
+    timeline = build_timeline([local_shift(25, 14, 25, 22), local_shift(26, 9, 26, 18)])
+
+    blocks = sorted(sleep_blocks(timeline))
+
+    for (_, first_end), (second_start, _) in zip(blocks, blocks[1:]):
+        assert first_end <= second_start, f"{first_end} > {second_start}"
+
+
+def test_overnight_shift_sleeps_the_morning_it_ends():
+    """Gece vardiyasi (Sali 23:00 -> Carsamba 07:00) Carsamba sabahi uyunur."""
+    timeline = build_timeline([local_shift(25, 23, 26, 7)])
+
+    (start, end), = sleep_blocks(timeline)
+
+    assert start == IST.localize(datetime(2026, 8, 26, 8, 0))
+    assert end == IST.localize(datetime(2026, 8, 26, 16, 0))
+
+
+def test_evening_shift_day_keeps_the_night_restriction():
+    """14:00-22:00 aksam vardiyasi gece vardiyasi degil; o gun de 07:00 kisiti gecerli."""
+    timeline = build_timeline([local_shift(25, 14, 25, 22)])
+
+    tuesday = [s for s in find_free_slots(timeline, WEEK_START) if s[0] == "Salı"]
+
+    assert tuesday, "Sali icin slot bekleniyordu"
+    assert all(start.hour >= 7 for _, start, _ in tuesday)
+
+
+def test_overnight_shift_day_yields_a_slot_after_waking():
+    """Gece vardiyasindan cikan kisi uyandiktan sonra bos zamana sahip olmali."""
+    timeline = build_timeline([local_shift(25, 23, 26, 7)])
+
+    wednesday = [s for s in find_free_slots(timeline, WEEK_START) if s[0] == "Çarşamba"]
+
+    assert any(start >= IST.localize(datetime(2026, 8, 26, 16, 0)) for _, start, _ in wednesday)
+    assert all(start.hour >= 7 for _, start, _ in wednesday)

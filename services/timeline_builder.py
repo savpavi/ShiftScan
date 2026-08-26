@@ -10,7 +10,7 @@ import pytz
 # Gun adlari (Pazartesi = 0). Vardiya metni ayristirmasi tarayicida yapilir.
 DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 
-# Gece aktivite yasagi: bu saatten once slot uretilmez (gece vardiyasi gunleri haric)
+# Gece aktivite yasagi: bu saatten once slot uretilmez
 NIGHT_END_HOUR = 7
 
 
@@ -46,19 +46,21 @@ def build_timeline(shift_events: List[Dict]) -> List[Tuple[datetime, datetime, s
         # Vardiya bloğu
         timeline.append((start_dt, end_dt, "shift"))
         
-        # İNSANİ UYKU MANTIĞI
-        shift_end_hour = end_dt.hour
-        
-        if shift_end_hour < 22:  # 22:00'den önce biten vardiyalar
-            # O günün gecesine uyku (00:30 - 08:30)
-            sleep_date = end_dt.date()
-            sleep_start = istanbul_tz.localize(datetime.combine(sleep_date, datetime.min.time()).replace(hour=0, minute=30))
-            sleep_end = sleep_start + timedelta(hours=8)  # 00:30 - 08:30
-        else:  # 22:00'den sonra biten vardiyalar
-            # İş çıkışından 1 saat sonra uyku
+        # INSANI UYKU MANTIGI
+        # Uyku her zaman vardiyayi *izleyen* dinlenmedir, oncesindeki degil.
+        overnight = start_dt.date() != end_dt.date()  # gece vardiyasi, ertesi sabah biter
+
+        if overnight or end_dt.hour >= 22:
+            # Is cikisindan 1 saat sonra uyku (gece vardiyasindan cikan kisi
+            # ayni sabah uyur, gec biten vardiyanin uykusu da hemen ardindan gelir)
             sleep_start = end_dt + timedelta(hours=1)
-            sleep_end = sleep_start + timedelta(hours=8)
-        
+        else:
+            # Normal gunduz/aksam vardiyasi: vardiyayi izleyen gece 00:30
+            sleep_start = istanbul_tz.localize(
+                datetime.combine(end_dt.date() + timedelta(days=1), time(hour=0, minute=30))
+            )
+
+        sleep_end = sleep_start + timedelta(hours=8)
         timeline.append((sleep_start, sleep_end, "sleep"))
     
     # Kronolojik sırala
@@ -77,7 +79,6 @@ def find_free_slots(
     hic vardiyasi olmayan izin gunleri de planlamaya dahil olur.
 
     Gece aktivite yasagi: gunun ilk slotu NIGHT_END_HOUR'dan once baslamaz.
-    Gece vardiyasi biten gunlerde bu kisit uygulanmaz.
 
     Args:
         timeline: Timeline listesi
@@ -89,13 +90,6 @@ def find_free_slots(
     free_slots = []
     istanbul_tz = pytz.timezone('Europe/Istanbul')
 
-    # Gece vardiyasi biten gunlerde gece kisiti devre disi
-    night_shift_days = {
-        end.date()
-        for start, end, block_type in timeline
-        if block_type == "shift" and end.hour >= 22
-    }
-
     for day_offset in range(7):
         current_day = week_start + timedelta(days=day_offset)
         day_name = DAY_NAMES[day_offset]
@@ -106,12 +100,12 @@ def find_free_slots(
             datetime.combine(current_day + timedelta(days=1), time.min)
         )
 
-        if current_day in night_shift_days:
-            earliest = day_start
-        else:
-            earliest = istanbul_tz.localize(
-                datetime.combine(current_day, time(hour=NIGHT_END_HOUR))
-            )
+        # Gece kisiti her gun gecerli. Gece vardiyasinin kendisi zaten bir blok
+        # oldugu icin ayri bir istisna gerekmiyor; onceki kural aksam vardiyasini
+        # gece vardiyasi sanip tum geceyi aktiviteye aciyordu.
+        earliest = istanbul_tz.localize(
+            datetime.combine(current_day, time(hour=NIGHT_END_HOUR))
+        )
 
         # O gune denk gelen bloklari gun sinirlarina kirp
         day_blocks = sorted(
