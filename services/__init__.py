@@ -20,7 +20,6 @@ from .ai_planner import (
     get_gemini_activity_plan,
     apply_activity_plan,
     generate_basic_plan,
-    ACTIVITY_MAP,
 )
 
 __all__ = [
@@ -42,5 +41,4 @@ __all__ = [
     'get_gemini_activity_plan',
     'apply_activity_plan',
     'generate_basic_plan',
-    'ACTIVITY_MAP',
 ]

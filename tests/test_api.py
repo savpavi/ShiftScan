@@ -21,7 +21,7 @@ def plan_payload(**overrides) -> dict:
                 "original_line": "Pzt 09:00 - 18:00",
             }
         ],
-        "activities": {"sports": {"value": 2, "type": "hours"}},
+        "activities": [{"id": "a1", "name": "Sport", "amount": 2, "unit": "hours"}],
     }
     payload.update(overrides)
     return payload

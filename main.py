@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Optional
 from datetime import date, timedelta
 import uvicorn
 from dotenv import load_dotenv
@@ -15,7 +15,7 @@ load_dotenv()
 from services.ocr_service import process_ocr_image, is_ocr_available
 from services.timeline_builder import build_timeline, find_free_slots
 from services.ics_generator import generate_final_ics
-from services.models import CalendarLabels
+from services.models import ActivityGoal, CalendarLabels
 from services.ai_planner import (
     apply_activity_plan,
     configure_gemini,
@@ -49,10 +49,6 @@ class ShiftEvent(BaseModel):
     end: str
     original_line: str
 
-class Activity(BaseModel):
-    value: int
-    type: str  # 'hours' veya 'days'
-
 class OCRRequest(BaseModel):
     image_base64: str = Field(..., max_length=MAX_IMAGE_BASE64_LENGTH)
     prompt: Optional[str] = Field(default=None, max_length=MAX_OCR_PROMPT_LENGTH)
@@ -62,7 +58,7 @@ class PlanRequest(BaseModel):
     timezone: str = "Europe/Istanbul"
     shift_text: str
     shift_events: List[ShiftEvent]
-    activities: Dict[str, Activity]
+    activities: List[ActivityGoal]
     labels: CalendarLabels = CalendarLabels()
 
 @app.get("/")
@@ -102,12 +98,15 @@ async def generate_plan(plan_data: PlanRequest):
         )
 
         # 3. Aktivite dagilimi (AI, basarisizsa kural tabanli)
+        known_ids = {goal.id for goal in plan_data.activities}
         activity_plan = await get_gemini_activity_plan(
-            free_slots, plan_data.activities, timeout=GEMINI_TIMEOUT_SECONDS
+            free_slots, plan_data.activities, known_ids, timeout=GEMINI_TIMEOUT_SECONDS
         )
 
         if activity_plan:
-            activity_events = apply_activity_plan(free_slots, activity_plan)
+            activity_events = apply_activity_plan(
+                free_slots, activity_plan, plan_data.activities
+            )
             plan_source = "ai"
         else:
             activity_events = generate_basic_plan(free_slots, plan_data.activities)

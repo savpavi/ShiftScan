@@ -3,7 +3,7 @@ AI Planner Service
 Google Gemini API ile akıllı aktivite planlama
 """
 
-from typing import Any, List, Tuple, Dict
+from typing import Any, List, Tuple
 from datetime import datetime, timedelta
 import os
 import json
@@ -11,6 +11,8 @@ import asyncio
 import time
 
 from pydantic import BaseModel, Field, ValidationError
+
+from services.models import DEFAULT_SESSION_HOURS, PREFERRED_WINDOWS, ActivityGoal
 
 # Gemini API yapılandırması opsiyonel
 try:
@@ -21,16 +23,6 @@ except ImportError:
     genai = None
 
 
-# Aktivite haritası
-ACTIVITY_MAP = {
-    'content-production': 'İçerik Üretimi',
-    'sports': 'Spor',
-    'reading': 'Kitap Okuma',
-    'social': 'Sosyal Yaşam / Arkadaşlar',
-    'gaming': 'Oyun / Dinlenme'
-}
-
-
 # Tek bir aktivite yerlestirmesi icin ust sinir (bir gunun tamami)
 MAX_ACTIVITY_HOURS = 24
 
@@ -39,20 +31,21 @@ class ActivityPlanItem(BaseModel):
     """Modelin dondurdugu tek bir plan satiri."""
 
     day_index: int = Field(ge=0, le=6)
-    activity: str
+    activity_id: str
     hours: float = Field(gt=0, le=MAX_ACTIVITY_HOURS)
 
 
-def parse_activity_plan(raw: Any) -> List[ActivityPlanItem]:
+def parse_activity_plan(raw: Any, known_ids: set) -> List[ActivityPlanItem]:
     """
     Dil modelinden gelen ham plan ciktisini dogrular.
 
     Model ciktisi guvenilmez: alan eksik olabilir, sayi string gelebilir,
-    liste yerine dict donebilir. Gecerli satirlar korunur, gecersizler
-    atlanir; hicbir durumda exception yukselmez.
+    liste yerine dict donebilir, uydurma bir aktivite id'si gelebilir.
+    Gecerli satirlar korunur, gecersizler atlanir; exception yukselmez.
 
     Args:
         raw: json.loads ciktisi (herhangi bir tip olabilir)
+        known_ids: istekteki gecerli aktivite id'leri
 
     Returns:
         Dogrulanmis plan satirlari (bos olabilir)
@@ -67,9 +60,16 @@ def parse_activity_plan(raw: Any) -> List[ActivityPlanItem]:
             print(f"WARNING: Plan satiri dict degil ({type(entry).__name__}), atlandi")
             continue
         try:
-            items.append(ActivityPlanItem(**entry))
+            item = ActivityPlanItem(**entry)
         except ValidationError as exc:
             print(f"WARNING: Gecersiz plan satiri atlandi: {entry} ({exc.error_count()} hata)")
+            continue
+
+        if item.activity_id not in known_ids:
+            print(f"WARNING: Bilinmeyen aktivite id'si atlandi: {item.activity_id}")
+            continue
+
+        items.append(item)
 
     return items
 
@@ -101,19 +101,9 @@ def configure_gemini():
 
 def create_gemini_activity_prompt(
     free_slots: List[Tuple[int, datetime, datetime]],
-    activities: Dict
+    goals: List[ActivityGoal]
 ) -> str:
-    """
-    Gemini için sadece aktivite dağılımı isteyen prompt oluşturur
-
-    Args:
-        free_slots: Boş zaman slotları
-        activities: Aktivite hedefleri
-
-    Returns:
-        Prompt string
-    """
-    # Boş slotları özetle
+    """Kullanicinin tanimladigi hedeflerden dil bagimsiz bir prompt uretir."""
     slot_summary = "FREE TIME (day index 0 = Monday):\n"
     day_totals = {}
 
@@ -123,46 +113,42 @@ def create_gemini_activity_prompt(
 
     for day_index in sorted(day_totals):
         slot_summary += f"- day {day_index}: {day_totals[day_index]:.1f} hours free\n"
-    
-    # Aktivite hedefleri
-    activity_goals = "AKTİVİTE HEDEFLERİ:\n"
-    
-    for key, activity in activities.items():
-        activity_name = ACTIVITY_MAP.get(key, key)
-        # activity dict veya object olabilir
-        activity_value = activity.get('value') if isinstance(activity, dict) else activity.value
-        activity_type = activity.get('type') if isinstance(activity, dict) else activity.type
-        unit = 'gün' if activity_type == 'days' else 'saat'
-        activity_goals += f"- {activity_name}: Haftada {activity_value} {unit}\n"
-    
-    prompt = f"""ZAMAN YÖNETİMİ ASISTANI: Haftalık aktivite dağılımı yapmanı istiyorum.
+
+    activity_goals = "ACTIVITY GOALS:\n"
+    for goal in goals:
+        if goal.unit == "days":
+            amount = f"{goal.amount:g} days per week, {DEFAULT_SESSION_HOURS:g} hour each"
+        else:
+            amount = f"{goal.amount:g} hours per week"
+
+        if goal.preferred == "any":
+            window = "no time preference"
+        else:
+            start_hour, end_hour = PREFERRED_WINDOWS[goal.preferred]
+            window = f"prefer {goal.preferred} ({start_hour:02d}:00-{end_hour:02d}:00)"
+
+        activity_goals += f'- id {goal.id} "{goal.name}": {amount}, {window}\n'
+
+    return f"""You are a scheduling assistant. Distribute the activities below across the free time.
 
 {slot_summary}
 {activity_goals}
+RULES:
+- Do not overlap activities.
+- Keep activities in waking hours; avoid 01:00-06:00.
+- Respect each activity's preferred window when the free time allows it.
+- Do not schedule demanding activities right after a shift ends.
 
-KURALLAR:
-- Her aktiviteyi uygun günlere dağıt
-- Çakışma olmasın
-- İNSANİ YAŞAM STANDARTLARINA göre planla
-- 'Sosyal Yaşam / Arkadaşlar' aktivitesi asla sabah 04:00 - 08:00 arasına konulamaz. Genellikle akşam saatlerine (18:00-23:00) koyulmalıdır.
-- 'Spor' sabah erken (06:00-09:00) veya iş çıkışı olabilir.
-- 'İçerik Üretimi' gündüz saatlerine (09:00-18:00) öncelik ver.
-- 'Kitap Okuma' akşam dinlenme saatlerine uygun.
-- Aktiviteleri insanların uyanık olduğu saatlere yerleştir (gece 01:00-06:00 kaçının).
-- Enerji verimliliğini düşün (gece vardiyası sonrası ağır spor koyma).
-
-Çıktıyı SADECE JSON formatında ver, başka açıklama yok:
+Return ONLY JSON, no other text. Use the activity ids above, never the names:
 [
-  {{"day_index": 0, "activity": "Spor", "hours": 1}},
-  {{"day_index": 1, "activity": "İçerik Üretimi", "hours": 2}}
+  {{"day_index": 0, "activity_id": "a1", "hours": 1}}
 ]"""
-    
-    return prompt
 
 
 async def get_gemini_activity_plan(
     free_slots: List[Tuple[int, datetime, datetime]],
-    activities: Dict,
+    goals: List[ActivityGoal],
+    known_ids: set,
     timeout: float = 30.0,
 ) -> List[ActivityPlanItem]:
     """
@@ -173,7 +159,8 @@ async def get_gemini_activity_plan(
 
     Args:
         free_slots: Bos zaman slotlari
-        activities: Aktivite hedefleri
+        goals: Aktivite hedefleri
+        known_ids: istekteki gecerli aktivite id'leri
         timeout: API timeout suresi (saniye)
 
     Returns:
@@ -183,7 +170,7 @@ async def get_gemini_activity_plan(
         print("INFO: Gemini yapilandirilmamis, kural tabanli plan kullanilacak")
         return []
 
-    prompt = create_gemini_activity_prompt(free_slots, activities)
+    prompt = create_gemini_activity_prompt(free_slots, goals)
 
     try:
         started = time.time()
@@ -216,12 +203,13 @@ async def get_gemini_activity_plan(
         print(f"WARNING: Gemini gecersiz JSON dondu: {exc}")
         return []
 
-    return parse_activity_plan(raw_plan)
+    return parse_activity_plan(raw_plan, known_ids)
 
 
 def apply_activity_plan(
     free_slots: List[Tuple[int, datetime, datetime]],
-    activity_plan: List[ActivityPlanItem]
+    activity_plan: List[ActivityPlanItem],
+    goals: List[ActivityGoal]
 ) -> List[Tuple[datetime, datetime, str]]:
     """
     Aktivite planını boş slotlara çakışma olmadan yerleştirir
@@ -229,17 +217,19 @@ def apply_activity_plan(
     Args:
         free_slots: Boş zaman slotları
         activity_plan: Dogrulanmis plan satirlari (bkz. parse_activity_plan)
+        goals: Aktivite hedefleri (id -> ad cozumu icin)
 
     Returns:
         Aktivite etkinlikleri listesi
     """
+    names = {goal.id: goal.name for goal in goals}
     activity_events = []
 
     # Gün bazında boş slotları grupla
     available_slots = []
     for day_index, start, end in free_slots:
         available_slots.append({
-            'day': day_index,
+            'day_index': day_index,
             'start': start,
             'end': end,
             'duration': (end - start).total_seconds() / 3600,
@@ -248,94 +238,85 @@ def apply_activity_plan(
 
     # Aktiviteleri yerleştir
     for plan_item in activity_plan:
+        activity_name = names.get(plan_item.activity_id)
+        if not activity_name:
+            print(f"WARNING: Bilinmeyen aktivite id'si '{plan_item.activity_id}' atlandi")
+            continue
+
         day = plan_item.day_index
-        activity_key = plan_item.activity
         hours_needed = plan_item.hours
 
-        # Aktivite adını bul
-        activity_name = None
-        for key, name in ACTIVITY_MAP.items():
-            if activity_key.lower() in (name.lower(), key.lower()):
-                activity_name = name
-                break
-
-        if not activity_name:
-            print(f"WARNING: Bilinmeyen aktivite '{activity_key}' atlandi")
-            continue
-        
         # O gün için uygun slotları bul
-        day_slots = [slot for slot in available_slots if slot['day'] == day]
+        day_slots = [slot for slot in available_slots if slot['day_index'] == day]
         remaining_hours = hours_needed
-        
+
         for slot in day_slots:
             if remaining_hours <= 0:
                 break
-            
+
             available_in_slot = slot['end'] - slot['used_until']
             available_hours = available_in_slot.total_seconds() / 3600
-            
+
             if available_hours <= 0:
                 continue
-            
+
             hours_to_place = min(remaining_hours, available_hours)
-            
+
             activity_start = slot['used_until']
             activity_end = activity_start + timedelta(hours=hours_to_place)
-            
+
             activity_events.append((activity_start, activity_end, activity_name))
-            
+
             slot['used_until'] = activity_end
             remaining_hours -= hours_to_place
-    
+
     return activity_events
 
 
 def generate_basic_plan(
     free_slots: List[Tuple[int, datetime, datetime]],
-    activities: Dict
+    goals: List[ActivityGoal]
 ) -> List[Tuple[datetime, datetime, str]]:
     """
-    API olmadan basit aktivite planı oluşturur (fallback)
-    
-    Args:
-        free_slots: Boş zaman slotları
-        activities: Aktivite hedefleri
-    
-    Returns:
-        Aktivite etkinlikleri listesi
+    API olmadan basit aktivite plani olusturur (fallback).
+
+    Tercih edilen pencereye denk gelen slotlar once denenir; aktivite oraya
+    sigmazsa herhangi bir bos slota konur. Yerlesemeyen saatler sessizce
+    dusulur - kullaniciya bildirmek backlog madde 8.
     """
     activity_events = []
-    
-    # Aktiviteleri basit bir şekilde dağıt
-    activity_list = []
-    for key, activity in activities.items():
-        activity_name = ACTIVITY_MAP.get(key, key)
-        activity_value = activity.get('value') if isinstance(activity, dict) else activity.value
-        activity_type = activity.get('type') if isinstance(activity, dict) else activity.type
-        
-        if activity_type == 'hours':
-            hours = activity_value
-        else:  # days
-            hours = activity_value * 1  # Her gün için 1 saat varsay
-        
-        activity_list.append({'name': activity_name, 'hours': hours})
-    
-    # Slotlara dağıt
-    slot_index = 0
-    for activity in activity_list:
-        remaining = activity['hours']
-        
-        while remaining > 0 and slot_index < len(free_slots):
-            _, start, end = free_slots[slot_index]
-            slot_duration = (end - start).total_seconds() / 3600
-            
-            hours_to_use = min(remaining, slot_duration, 2)  # Max 2 saat blok
-            
-            if hours_to_use > 0:
-                activity_end = start + timedelta(hours=hours_to_use)
-                activity_events.append((start, activity_end, activity['name']))
-                remaining -= hours_to_use
-            
-            slot_index += 1
-    
+    used_until = {index: start for index, (_, start, _) in enumerate(free_slots)}
+
+    def slot_matches(slot_index: int, preferred: str) -> bool:
+        if preferred == "any":
+            return True
+        window_start, window_end = PREFERRED_WINDOWS[preferred]
+        _, start, end = free_slots[slot_index]
+        return start.hour < window_end and end.hour > window_start
+
+    for goal in goals:
+        if goal.unit == "days":
+            remaining = goal.amount * DEFAULT_SESSION_HOURS
+        else:
+            remaining = goal.amount
+
+        preferred_order = [i for i in range(len(free_slots)) if slot_matches(i, goal.preferred)]
+        fallback_order = [i for i in range(len(free_slots)) if i not in preferred_order]
+
+        for slot_index in preferred_order + fallback_order:
+            if remaining <= 0:
+                break
+
+            _, slot_start, slot_end = free_slots[slot_index]
+            cursor = used_until[slot_index]
+            available = (slot_end - cursor).total_seconds() / 3600
+            if available <= 0:
+                continue
+
+            hours_to_use = min(remaining, available, 2)
+            activity_end = cursor + timedelta(hours=hours_to_use)
+            activity_events.append((cursor, activity_end, goal.name))
+            used_until[slot_index] = activity_end
+            remaining -= hours_to_use
+
     return activity_events
