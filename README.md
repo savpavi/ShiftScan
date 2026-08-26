@@ -83,8 +83,12 @@ app falls back to a rule-based planner and stays fully functional.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+pytest                        # backend (31 tests)
+node --test tests/js/*.test.js  # ICS generation in the browser (9 tests)
 ```
+
+Both suites run on every push and pull request via GitHub Actions
+(`.github/workflows/ci.yml`), together with a Docker build.
 
 ## License
 

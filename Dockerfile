@@ -25,5 +25,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Uygulama dosyalarını kopyala
 COPY . .
 
+# Root olmayan kullanıcı
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Uygulamayı başlat
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

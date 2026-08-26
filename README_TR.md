@@ -81,8 +81,12 @@ uygulama kural tabanlı planlayıcıya düşer ve çalışmaya devam eder.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+pytest                        # backend (31 test)
+node --test tests/js/*.test.js  # tarayici ICS uretimi (9 test)
 ```
+
+Her push ve pull request'te GitHub Actions bu iki paketi ve bir Docker build'i
+calistirir (`.github/workflows/ci.yml`).
 
 ## Lisans
 
