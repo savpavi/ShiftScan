@@ -17,9 +17,10 @@ WEEK_START = date(2026, 8, 24)
 @pytest.fixture
 def free_slots():
     timeline = build_timeline(
-        [{"start": "2026-08-24T06:00:00Z", "end": "2026-08-24T15:00:00Z"}]
+        [{"start": "2026-08-24T06:00:00Z", "end": "2026-08-24T15:00:00Z"}],
+        "Europe/Istanbul"
     )
-    return find_free_slots(timeline, WEEK_START)
+    return find_free_slots(timeline, WEEK_START, "Europe/Istanbul")
 
 
 def test_item_without_activity_is_skipped():

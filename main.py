@@ -59,6 +59,7 @@ class OCRRequest(BaseModel):
 
 class PlanRequest(BaseModel):
     start_date: str
+    timezone: str = "Europe/Istanbul"
     shift_text: str
     shift_events: List[ShiftEvent]
     activities: Dict[str, Activity]
@@ -89,11 +90,12 @@ async def generate_plan(plan_data: PlanRequest):
 
         # 1. Timeline (vardiya + uyku)
         timeline = build_timeline(
-            [event.model_dump() for event in plan_data.shift_events]
+            [event.model_dump() for event in plan_data.shift_events],
+            plan_data.timezone,
         )
 
         # 2. Bos slotlar - hafta start_date'ten kurulur, izin gunleri dahil
-        free_slots = find_free_slots(timeline, week_start)
+        free_slots = find_free_slots(timeline, week_start, plan_data.timezone)
         print(
             f"INFO: {len(plan_data.shift_events)} vardiya -> "
             f"{len(timeline)} blok, {len(free_slots)} bos slot"
