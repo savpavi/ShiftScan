@@ -94,3 +94,47 @@ test('disabled activities are left out of the payload', () => {
 
     assert.deepStrictEqual(A.toPayload(list).map((a) => a.id), ['x2']);
 });
+
+test('a deliberately empty list is preserved, not replaced with defaults', () => {
+    const storage = fakeStorage({});
+    const list = [];
+
+    A.save(storage, list);
+
+    assert.deepStrictEqual(A.load(storage, NAMES), []);
+});
+
+test('storage that throws is handled gracefully: load returns defaults', () => {
+    const badStorage = {
+        getItem: () => { throw new Error('storage unavailable'); },
+        setItem: () => { throw new Error('storage unavailable'); }
+    };
+
+    const list = A.load(badStorage, NAMES);
+    assert.strictEqual(list.length, Object.keys(NAMES).length);
+});
+
+test('storage that throws is handled gracefully: save does not propagate', () => {
+    const badStorage = {
+        getItem: () => null,
+        setItem: () => { throw new Error('storage unavailable'); }
+    };
+
+    const list = [{ id: 'x1', name: 'Test', amount: 1, unit: 'hours', preferred: 'any' }];
+
+    // Should not throw
+    A.save(badStorage, list);
+    assert.ok(true);
+});
+
+test('valid JSON that is not an array falls back to defaults', () => {
+    const storage = fakeStorage({ [A.STORAGE_KEY]: '{}' });
+    assert.strictEqual(A.load(storage, NAMES).length, Object.keys(NAMES).length);
+});
+
+test('payload activity with missing preferred defaults to any', () => {
+    const list = [{ id: 'x1', name: 'Guitar', amount: 2, unit: 'hours', enabled: true }];
+
+    const payload = A.toPayload(list);
+    assert.strictEqual(payload[0].preferred, 'any');
+});

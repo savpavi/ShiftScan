@@ -42,7 +42,7 @@
             const raw = storage.getItem(STORAGE_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed) && parsed.length) return parsed;
+                if (Array.isArray(parsed)) return parsed;
             }
         } catch (err) {
             // Bozuk veya erisilemeyen depolama varsayilanlari engellememeli
