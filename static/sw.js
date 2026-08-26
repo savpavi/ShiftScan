@@ -3,14 +3,15 @@
  * Offline caching ve PWA desteği
  */
 
-const CACHE_NAME = 'vardiya-takvimi-v1';
-const STATIC_CACHE = 'vardiya-static-v1';
+const CACHE_NAME = 'vardiya-takvimi-v2';
+const STATIC_CACHE = 'vardiya-static-v2';
 
 // Önbelleğe alınacak dosyalar
 const STATIC_ASSETS = [
     '/',
     '/static/css/style.css',
     '/static/js/app.js',
+    '/static/js/ics.js',
     '/static/js/i18n.js',
     '/static/js/templates.js',
     '/static/manifest.json'
