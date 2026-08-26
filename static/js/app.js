@@ -80,35 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dijitalAcentelik: document.getElementById('dijitalAcentelik')
     };
 
-    // Aktivite Elemanları
-    const activities = {
-        'content-production': {
-            checkbox: document.getElementById('content-production'),
-            input: document.getElementById('content-hours'),
-            type: 'hours'
-        },
-        'sports': {
-            checkbox: document.getElementById('sports'),
-            input: document.getElementById('sports-days'),
-            type: 'days'
-        },
-        'reading': {
-            checkbox: document.getElementById('reading'),
-            input: document.getElementById('reading-hours'),
-            type: 'hours'
-        },
-        'social': {
-            checkbox: document.getElementById('social'),
-            input: document.getElementById('social-hours'),
-            type: 'hours'
-        },
-        'gaming': {
-            checkbox: document.getElementById('gaming'),
-            input: document.getElementById('gaming-hours'),
-            type: 'hours'
-        }
-    };
-
     // ============================================
     // TOAST BİLDİRİM SİSTEMİ
     // ============================================
@@ -286,26 +257,78 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================
-    // AKTİVİTE CHECKBOX'LARI
+    // AKTİVİTE LİSTESİ
     // ============================================
-    
-    Object.keys(activities).forEach(key => {
-        const activity = activities[key];
-        if (activity.checkbox && activity.input) {
-            activity.checkbox.addEventListener('change', () => {
-                activity.input.disabled = !activity.checkbox.checked;
-                if (!activity.checkbox.checked) {
-                    activity.input.value = '';
-                }
-                
-                // Kart vurgulama
-                const card = activity.checkbox.closest('.activity-card');
-                if (card) {
-                    card.classList.toggle('selected', activity.checkbox.checked);
-                }
+
+    const activityListEl = document.getElementById('activity-list');
+    const activityTemplate = document.getElementById('activity-row-template');
+    let activityList = ShiftScanActivities.load(localStorage, activityNames());
+
+    function activityNames() {
+        const keys = ['content-production', 'sports', 'reading', 'social', 'gaming'];
+        const names = {};
+        keys.forEach((key) => { names[key] = window.i18n ? window.i18n.t(key) : key; });
+        return names;
+    }
+
+    function persistActivities() {
+        ShiftScanActivities.save(localStorage, activityList);
+    }
+
+    function renderActivities() {
+        activityListEl.innerHTML = '';
+
+        activityList.forEach((activity) => {
+            const row = activityTemplate.content.cloneNode(true);
+            const li = row.querySelector('.activity-row');
+
+            const enabled = li.querySelector('.activity-enabled');
+            const name = li.querySelector('.activity-name');
+            const amount = li.querySelector('.activity-amount');
+            const unit = li.querySelector('.activity-unit');
+            const preferred = li.querySelector('.activity-preferred');
+
+            enabled.checked = activity.enabled !== false;
+            name.value = activity.name;
+            amount.value = activity.amount;
+            unit.value = activity.unit;
+            preferred.value = activity.preferred || 'any';
+
+            enabled.addEventListener('change', () => {
+                activity.enabled = enabled.checked;
+                persistActivities();
             });
-        }
+            name.addEventListener('input', () => { activity.name = name.value; persistActivities(); });
+            amount.addEventListener('input', () => {
+                activity.amount = Number(amount.value);
+                persistActivities();
+            });
+            unit.addEventListener('change', () => { activity.unit = unit.value; persistActivities(); });
+            preferred.addEventListener('change', () => {
+                activity.preferred = preferred.value;
+                persistActivities();
+            });
+            li.querySelector('.activity-remove').addEventListener('click', () => {
+                activityList = ShiftScanActivities.removeActivity(activityList, activity.id);
+                persistActivities();
+                renderActivities();
+            });
+
+            activityListEl.appendChild(row);
+        });
+    }
+
+    document.getElementById('add-activity').addEventListener('click', () => {
+        activityList = ShiftScanActivities.addActivity(activityList, {
+            name: window.i18n ? window.i18n.t('addActivity') : 'Activity',
+            amount: 1,
+            unit: 'hours'
+        });
+        persistActivities();
+        renderActivities();
     });
+
+    renderActivities();
 
     // ============================================
     // GÖRSEL YÜKLEME & CROPPER
@@ -1170,22 +1193,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Aktivite verilerini topla
-                const activityData = {};
-                let hasValidActivity = false;
+                // Aktivite listesini payload'a çevir (kapatılmış/silinmiş satırlar hariç)
+                const activityPayload = ShiftScanActivities.toPayload(activityList);
 
-                Object.keys(activities).forEach(key => {
-                    const activity = activities[key];
-                    if (activity.checkbox.checked && activity.input.value) {
-                        activityData[key] = {
-                            value: parseInt(activity.input.value),
-                            type: activity.type
-                        };
-                        hasValidActivity = true;
-                    }
-                });
-
-                if (!hasValidActivity) {
+                if (activityPayload.length === 0) {
                     showAlert(window.i18n?.t('selectActivity') || 'Lütfen en az bir aktivite seçin ve süre/gün belirtin!', 'warning');
                     return;
                 }
@@ -1198,14 +1209,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Backend'e gönderilecek veri
                 const planData = {
                     start_date: startDateVal,
-                    shift_text: shiftTextVal,
-                    shift_events: shiftEvents.map(event => ({
-                        title: event.title,
-                        start: event.start.toISOString(),
-                        end: event.end.toISOString(),
-                        original_line: event.originalLine
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    shift_events: shiftEvents.map((ev) => ({
+                        start: ev.start.toISOString(),
+                        end: ev.end.toISOString()
                     })),
-                    activities: activityData
+                    activities: activityPayload,
+                    labels: {
+                        shift: window.i18n ? window.i18n.t('icsShift') : 'Shift',
+                        sleep: window.i18n ? window.i18n.t('icsSleep') : 'Sleep'
+                    }
                 };
 
                 console.log('Plan verileri:', planData);

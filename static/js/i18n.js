@@ -50,11 +50,25 @@ Pazar 10:00 - 18:00`,
             contentProduction: 'İçerik Üretimi',
             sports: 'Spor',
             reading: 'Kitap Okuma',
-            social: 'Sosyal Aktivite',
+            social: 'Sosyal Yaşam',
             gaming: 'Oyun / Dinlenme',
             weeklyHours: 'Haftalık saat',
             weeklyDays: 'Haftalık gün',
-            
+            addActivity: '+ Aktivite Ekle',
+            unitHours: 'saat',
+            unitDays: 'gün',
+            preferAny: 'Fark etmez',
+            preferMorning: 'Sabah',
+            preferAfternoon: 'Öğlen',
+            preferEvening: 'Akşam',
+
+            // ICS etiketleri
+            icsShift: 'Vardiya',
+            icsSleep: 'Uyku',
+
+            // Varsayılan aktivite adları
+            'content-production': 'İçerik Üretimi',
+
             // Butonlar
             preview: 'Önizle',
             createAIPlan: 'AI ile Plan Oluştur',
@@ -151,11 +165,25 @@ Sun 10:00 - 18:00`,
             contentProduction: 'Content Creation',
             sports: 'Sports',
             reading: 'Reading',
-            social: 'Social Activity',
+            social: 'Social Life',
             gaming: 'Gaming / Rest',
             weeklyHours: 'Weekly hours',
             weeklyDays: 'Weekly days',
-            
+            addActivity: '+ Add Activity',
+            unitHours: 'hours',
+            unitDays: 'days',
+            preferAny: 'Any time',
+            preferMorning: 'Morning',
+            preferAfternoon: 'Afternoon',
+            preferEvening: 'Evening',
+
+            // ICS labels
+            icsShift: 'Shift',
+            icsSleep: 'Sleep',
+
+            // Default activity names
+            'content-production': 'Content Creation',
+
             // Buttons
             preview: 'Preview',
             createAIPlan: 'Create Plan with AI',
@@ -253,11 +281,25 @@ So 10:00 - 18:00`,
             contentProduction: 'Content-Erstellung',
             sports: 'Sport',
             reading: 'Lesen',
-            social: 'Soziale Aktivität',
+            social: 'Soziales Leben',
             gaming: 'Spielen / Ausruhen',
             weeklyHours: 'Wochenstunden',
             weeklyDays: 'Wochentage',
-            
+            addActivity: '+ Aktivität hinzufügen',
+            unitHours: 'Stunden',
+            unitDays: 'Tage',
+            preferAny: 'Egal',
+            preferMorning: 'Morgens',
+            preferAfternoon: 'Nachmittags',
+            preferEvening: 'Abends',
+
+            // ICS-Beschriftungen
+            icsShift: 'Schicht',
+            icsSleep: 'Schlaf',
+
+            // Standard-Aktivitätsnamen
+            'content-production': 'Content-Erstellung',
+
             // Buttons
             preview: 'Vorschau',
             createAIPlan: 'Plan mit KI erstellen',
@@ -349,11 +391,25 @@ Dim 10:00 - 18:00`,
             contentProduction: 'Création de contenu',
             sports: 'Sport',
             reading: 'Lecture',
-            social: 'Activité sociale',
+            social: 'Vie sociale',
             gaming: 'Jeux / Repos',
             weeklyHours: 'Heures par semaine',
             weeklyDays: 'Jours par semaine',
-            
+            addActivity: '+ Ajouter une activité',
+            unitHours: 'heures',
+            unitDays: 'jours',
+            preferAny: 'Peu importe',
+            preferMorning: 'Matin',
+            preferAfternoon: 'Après-midi',
+            preferEvening: 'Soir',
+
+            // Libellés ICS
+            icsShift: 'Équipe',
+            icsSleep: 'Sommeil',
+
+            // Noms d'activités par défaut
+            'content-production': 'Création de contenu',
+
             // Boutons
             preview: 'Aperçu',
             createAIPlan: 'Créer un plan avec IA',
