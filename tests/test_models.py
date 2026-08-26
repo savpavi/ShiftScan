@@ -52,6 +52,12 @@ def test_preferred_must_be_a_known_window():
         ActivityGoal(**goal(preferred="midnight"))
 
 
+def test_activity_goal_rejects_unknown_field():
+    """Bir yazim hatasi (orn. 'prefered') sessizce yutulmamali."""
+    with pytest.raises(ValidationError):
+        ActivityGoal(**goal(prefered="evening"))
+
+
 def test_labels_have_neutral_defaults():
     labels = CalendarLabels()
 
@@ -62,6 +68,11 @@ def test_labels_have_neutral_defaults():
 def test_label_cannot_be_empty():
     with pytest.raises(ValidationError):
         CalendarLabels(shift="", sleep="Sleep")
+
+
+def test_calendar_labels_rejects_unknown_field():
+    with pytest.raises(ValidationError):
+        CalendarLabels(shift="Shift", sleep="Sleep", extra_field="oops")
 
 
 def test_every_preferred_value_except_any_has_a_window():

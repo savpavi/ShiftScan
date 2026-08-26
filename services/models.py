@@ -26,6 +26,8 @@ PREFERRED_WINDOWS = {
 class ActivityGoal(BaseModel):
     """Kullanicinin tanimladigi tek bir haftalik aktivite hedefi."""
 
+    model_config = {"extra": "forbid"}
+
     id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=80)
     amount: float = Field(gt=0, le=168)
@@ -35,6 +37,8 @@ class ActivityGoal(BaseModel):
 
 class CalendarLabels(BaseModel):
     """ICS'te vardiya ve uyku bloklarinin adi; ceviri istemciden gelir."""
+
+    model_config = {"extra": "forbid"}
 
     shift: str = Field(default="Shift", min_length=1, max_length=80)
     sleep: str = Field(default="Sleep", min_length=1, max_length=80)

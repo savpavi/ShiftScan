@@ -9,22 +9,20 @@ from main import app
 client = TestClient(app)
 
 
-def plan_payload(**overrides) -> dict:
-    payload = {
+def plan_body(**overrides) -> dict:
+    body = {
         "start_date": "2026-08-24",
-        "shift_text": "Pzt 09:00 - 18:00",
+        "timezone": "Europe/Istanbul",
         "shift_events": [
-            {
-                "title": "Vardiya",
-                "start": "2026-08-24T06:00:00Z",
-                "end": "2026-08-24T15:00:00Z",
-                "original_line": "Pzt 09:00 - 18:00",
-            }
+            {"start": "2026-08-24T09:00:00+03:00", "end": "2026-08-24T18:00:00+03:00"}
         ],
-        "activities": [{"id": "a1", "name": "Sport", "amount": 2, "unit": "hours"}],
+        "activities": [
+            {"id": "a1", "name": "Reading", "amount": 2, "unit": "hours"}
+        ],
+        "labels": {"shift": "Shift", "sleep": "Sleep"},
     }
-    payload.update(overrides)
-    return payload
+    body.update(overrides)
+    return body
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +33,7 @@ def no_api_key(monkeypatch):
 
 def test_generate_plan_falls_back_when_ai_unavailable():
     """Gemini yoksa endpoint 500 atmamali, kural tabanli plana dusmeli."""
-    response = client.post("/generate-plan", json=plan_payload())
+    response = client.post("/generate-plan", json=plan_body())
 
     assert response.status_code == 200
     assert response.json()["plan_source"] == "fallback"
@@ -43,7 +41,7 @@ def test_generate_plan_falls_back_when_ai_unavailable():
 
 
 def test_generate_plan_rejects_invalid_start_date():
-    response = client.post("/generate-plan", json=plan_payload(start_date="24/08/2026"))
+    response = client.post("/generate-plan", json=plan_body(start_date="24/08/2026"))
 
     assert response.status_code == 400
 
@@ -55,7 +53,7 @@ def test_generate_plan_does_not_leak_internal_errors(monkeypatch):
 
     monkeypatch.setattr(main, "generate_final_ics", boom)
 
-    response = client.post("/generate-plan", json=plan_payload())
+    response = client.post("/generate-plan", json=plan_body())
 
     assert response.status_code == 500
     detail = response.json()["detail"]
@@ -117,3 +115,38 @@ def test_home_page_renders():
 
     assert response.status_code == 200
     assert "ShiftScan" in response.text or "Vardiya" in response.text
+
+
+def test_unknown_timezone_returns_400():
+    response = client.post("/generate-plan", json=plan_body(timezone="Mars/Olympus"))
+
+    assert response.status_code == 400
+    assert "timezone" in response.json()["detail"].lower()
+
+
+def test_empty_activity_list_is_rejected():
+    response = client.post("/generate-plan", json=plan_body(activities=[]))
+
+    assert response.status_code == 422
+
+
+def test_too_many_activities_are_rejected():
+    many = [
+        {"id": f"a{i}", "name": f"Activity {i}", "amount": 1, "unit": "hours"}
+        for i in range(21)
+    ]
+
+    response = client.post("/generate-plan", json=plan_body(activities=many))
+
+    assert response.status_code == 422
+
+
+def test_duplicate_activity_ids_are_rejected():
+    duplicated = [
+        {"id": "a1", "name": "One", "amount": 1, "unit": "hours"},
+        {"id": "a1", "name": "Two", "amount": 1, "unit": "hours"},
+    ]
+
+    response = client.post("/generate-plan", json=plan_body(activities=duplicated))
+
+    assert response.status_code == 422

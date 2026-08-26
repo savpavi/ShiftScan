@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import date, timedelta
 import uvicorn
+import pytz
 from dotenv import load_dotenv
 import traceback
 
@@ -15,7 +16,7 @@ load_dotenv()
 from services.ocr_service import process_ocr_image, is_ocr_available
 from services.timeline_builder import build_timeline, find_free_slots
 from services.ics_generator import generate_final_ics
-from services.models import ActivityGoal, CalendarLabels
+from services.models import MAX_ACTIVITIES, ActivityGoal, CalendarLabels
 from services.ai_planner import (
     apply_activity_plan,
     configure_gemini,
@@ -44,10 +45,8 @@ templates = Jinja2Templates(directory="templates")
 
 # Pydantic modelleri
 class ShiftEvent(BaseModel):
-    title: str
     start: str
     end: str
-    original_line: str
 
 class OCRRequest(BaseModel):
     image_base64: str = Field(..., max_length=MAX_IMAGE_BASE64_LENGTH)
@@ -56,10 +55,17 @@ class OCRRequest(BaseModel):
 class PlanRequest(BaseModel):
     start_date: str
     timezone: str = "Europe/Istanbul"
-    shift_text: str
     shift_events: List[ShiftEvent]
-    activities: List[ActivityGoal]
+    activities: List[ActivityGoal] = Field(min_length=1, max_length=MAX_ACTIVITIES)
     labels: CalendarLabels = CalendarLabels()
+
+    @field_validator("activities")
+    @classmethod
+    def ids_must_be_unique(cls, goals: List[ActivityGoal]) -> List[ActivityGoal]:
+        ids = [goal.id for goal in goals]
+        if len(set(ids)) != len(ids):
+            raise ValueError("activity ids must be unique")
+        return goals
 
 @app.get("/")
 async def home(request: Request):
@@ -73,9 +79,18 @@ def _week_start_from(start_date: str) -> date:
     except (TypeError, ValueError):
         raise HTTPException(
             status_code=400,
-            detail="start_date 'YYYY-MM-DD' formatinda olmali",
+            detail="start_date must be in 'YYYY-MM-DD' format",
         )
     return parsed - timedelta(days=parsed.weekday())
+
+
+def _validate_timezone(name: str) -> str:
+    """Bilinmeyen bolge 500 yerine 400 olarak donmeli."""
+    try:
+        pytz.timezone(name)
+    except pytz.UnknownTimeZoneError:
+        raise HTTPException(status_code=400, detail=f"Unknown timezone: {name}")
+    return name
 
 
 @app.post("/generate-plan")
@@ -83,15 +98,16 @@ async def generate_plan(plan_data: PlanRequest):
     """Vardiya ve aktivite verilerinden haftalik plan ICS'i uretir."""
     try:
         week_start = _week_start_from(plan_data.start_date)
+        timezone = _validate_timezone(plan_data.timezone)
 
         # 1. Timeline (vardiya + uyku)
         timeline = build_timeline(
             [event.model_dump() for event in plan_data.shift_events],
-            plan_data.timezone,
+            timezone,
         )
 
         # 2. Bos slotlar - hafta start_date'ten kurulur, izin gunleri dahil
-        free_slots = find_free_slots(timeline, week_start, plan_data.timezone)
+        free_slots = find_free_slots(timeline, week_start, timezone)
         print(
             f"INFO: {len(plan_data.shift_events)} vardiya -> "
             f"{len(timeline)} blok, {len(free_slots)} bos slot"
@@ -119,7 +135,7 @@ async def generate_plan(plan_data: PlanRequest):
 
         return {
             "status": "success",
-            "message": "Plan olusturuldu",
+            "message": "Plan generated",
             "plan_source": plan_source,
             "ics_content": final_ics,
             "download_ready": True,
@@ -132,7 +148,7 @@ async def generate_plan(plan_data: PlanRequest):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
-            detail="Plan olusturulamadi. Lutfen tekrar deneyin.",
+            detail="Failed to generate plan. Please try again.",
         )
 
 
@@ -180,7 +196,7 @@ Return the raw text exactly as it appears, preserving the layout."""
             print(f"ERROR: OCR failed: {result['error']}")
             raise HTTPException(
                 status_code=502,
-                detail="OCR servisi yanit veremedi. Lutfen tekrar deneyin veya metni elle girin.",
+                detail="OCR service did not respond. Please try again or enter the text manually.",
             )
 
     except HTTPException:
@@ -189,7 +205,7 @@ Return the raw text exactly as it appears, preserving the layout."""
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
-            detail="OCR islenemedi. Lutfen tekrar deneyin veya metni elle girin.",
+            detail="Failed to process OCR. Please try again or enter the text manually.",
         )
 
 
