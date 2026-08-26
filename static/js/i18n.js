@@ -61,6 +61,8 @@ Pazar 10:00 - 18:00`,
             preferMorning: 'Sabah',
             preferAfternoon: 'Öğlen',
             preferEvening: 'Akşam',
+            removeActivity: 'Sil',
+            activityLimitReached: 'En fazla 20 aktivite ekleyebilirsiniz.',
 
             // ICS etiketleri
             icsShift: 'Vardiya',
@@ -176,6 +178,8 @@ Sun 10:00 - 18:00`,
             preferMorning: 'Morning',
             preferAfternoon: 'Afternoon',
             preferEvening: 'Evening',
+            removeActivity: 'Remove',
+            activityLimitReached: 'You can add up to 20 activities.',
 
             // ICS labels
             icsShift: 'Shift',
@@ -292,6 +296,8 @@ So 10:00 - 18:00`,
             preferMorning: 'Morgens',
             preferAfternoon: 'Nachmittags',
             preferEvening: 'Abends',
+            removeActivity: 'Entfernen',
+            activityLimitReached: 'Sie können maximal 20 Aktivitäten hinzufügen.',
 
             // ICS-Beschriftungen
             icsShift: 'Schicht',
@@ -402,6 +408,8 @@ Dim 10:00 - 18:00`,
             preferMorning: 'Matin',
             preferAfternoon: 'Après-midi',
             preferEvening: 'Soir',
+            removeActivity: 'Supprimer',
+            activityLimitReached: "Vous pouvez ajouter jusqu'à 20 activités.",
 
             // Libellés ICS
             icsShift: 'Équipe',
@@ -516,6 +524,12 @@ Dim 10:00 - 18:00`,
         document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
             const key = el.getAttribute('data-i18n-placeholder');
             el.placeholder = this.t(key);
+        });
+
+        // data-i18n-aria-label için
+        document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+            const key = el.getAttribute('data-i18n-aria-label');
+            el.setAttribute('aria-label', this.t(key));
         });
 
         // Title güncelle

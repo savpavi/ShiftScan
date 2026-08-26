@@ -260,8 +260,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // AKTİVİTE LİSTESİ
     // ============================================
 
+    // Backend'deki services/models.py::MAX_ACTIVITIES ile aynı sınır;
+    // sunucu zaten reddediyor ama kullanıcı 21. satırı eklerken
+    // sebepsiz bir 422 ile karşılaşmasın diye burada da uygulanır.
+    const MAX_ACTIVITIES = 20;
+
     const activityListEl = document.getElementById('activity-list');
     const activityTemplate = document.getElementById('activity-row-template');
+    const addActivityBtn = document.getElementById('add-activity');
     let activityList = ShiftScanActivities.load(localStorage, activityNames());
 
     function activityNames() {
@@ -316,9 +322,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             activityListEl.appendChild(row);
         });
+
+        // Yeni klonlanan satırlar (aria-label, seçenek metinleri) mevcut dile
+        // hemen senkronlansın; bir sonraki dil değişimini beklemesin.
+        if (window.i18n) window.i18n.updateUI();
+
+        if (addActivityBtn) {
+            addActivityBtn.disabled = activityList.length >= MAX_ACTIVITIES;
+        }
     }
 
-    document.getElementById('add-activity').addEventListener('click', () => {
+    addActivityBtn.addEventListener('click', () => {
+        if (activityList.length >= MAX_ACTIVITIES) {
+            showAlert(window.i18n ? window.i18n.t('activityLimitReached') : 'You can add up to 20 activities.', 'warning');
+            return;
+        }
         activityList = ShiftScanActivities.addActivity(activityList, {
             name: window.i18n ? window.i18n.t('addActivity') : 'Activity',
             amount: 1,
