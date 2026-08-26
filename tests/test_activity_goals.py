@@ -118,3 +118,39 @@ def test_days_unit_uses_the_default_session_length():
 
     total = sum((end - start).total_seconds() / 3600 for start, end, _ in events)
     assert total == 2 * DEFAULT_SESSION_HOURS
+
+
+def test_days_unit_places_distinct_sessions_on_distinct_days():
+    """'2 days per week' must be two separate day sessions, not one block."""
+    from services.models import DEFAULT_SESSION_HOURS
+
+    goals = [ActivityGoal(id="a1", name="Sport", amount=2, unit="days", preferred="any")]
+    slots = [slot(0, 7, 23), slot(1, 7, 23)]
+
+    events = generate_basic_plan(slots, goals)
+
+    assert len(events) == 2
+    days = {start.date() for start, _, _ in events}
+    assert len(days) == 2
+    for start, end, _ in events:
+        assert (end - start).total_seconds() / 3600 == DEFAULT_SESSION_HOURS
+
+
+def test_basic_plan_matches_preferred_window_in_a_slot_ending_at_midnight():
+    """
+    Regression: find_free_slots closes a day's final free slot at the NEXT
+    day's 00:00 (see services/timeline_builder.py). slot_matches must not
+    read '.hour' off that endpoint - end.hour == 0 there, which would make
+    every day's after-shift/evening block invisible to window matching.
+    """
+    goals = [ActivityGoal(id="a1", name="Reading", amount=1, unit="hours", preferred="evening")]
+    slots = [
+        (0, IST.localize(datetime(2026, 8, 24, 7)), IST.localize(datetime(2026, 8, 24, 9))),
+        (0, IST.localize(datetime(2026, 8, 24, 18)), IST.localize(datetime(2026, 8, 25, 0))),
+    ]
+
+    events = generate_basic_plan(slots, goals)
+
+    assert events
+    start, _, _ = events[0]
+    assert start.hour == 18

@@ -60,7 +60,7 @@ def parse_activity_plan(raw: Any, known_ids: set) -> List[ActivityPlanItem]:
             print(f"WARNING: Plan satiri dict degil ({type(entry).__name__}), atlandi")
             continue
         try:
-            item = ActivityPlanItem(**entry)
+            item = ActivityPlanItem.model_validate(entry)
         except ValidationError as exc:
             print(f"WARNING: Gecersiz plan satiri atlandi: {entry} ({exc.error_count()} hata)")
             continue
@@ -290,33 +290,67 @@ def generate_basic_plan(
     def slot_matches(slot_index: int, preferred: str) -> bool:
         if preferred == "any":
             return True
-        window_start, window_end = PREFERRED_WINDOWS[preferred]
+        window_start_hour, window_end_hour = PREFERRED_WINDOWS[preferred]
         _, start, end = free_slots[slot_index]
-        return start.hour < window_end and end.hour > window_start
+        # find_free_slots closes a day's final slot at the NEXT day's 00:00,
+        # so comparing raw .hour values (as before) reads that endpoint as
+        # hour 0 and hides the whole after-shift/evening block. Compare real
+        # intervals instead: anchor the window to the slot's start date and
+        # test for overlap. The end<=start guard covers a slot that wraps
+        # past midnight without its own date rollover.
+        day_start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        window_start = day_start + timedelta(hours=window_start_hour)
+        window_end = day_start + timedelta(hours=window_end_hour)
+        slot_end = end if end > start else end + timedelta(days=1)
+        return max(start, window_start) < min(slot_end, window_end)
 
     for goal in goals:
+        preferred_order = [i for i in range(len(free_slots)) if slot_matches(i, goal.preferred)]
+        fallback_order = [i for i in range(len(free_slots)) if i not in preferred_order]
+        ordered_slots = preferred_order + fallback_order
+
         if goal.unit == "days":
-            remaining = goal.amount * DEFAULT_SESSION_HOURS
+            # "N days per week" is N distinct day-sessions of
+            # DEFAULT_SESSION_HOURS each, not a single N*DEFAULT_SESSION_HOURS
+            # block - one session per day_index, never two on the same day.
+            sessions_needed = int(goal.amount)
+            used_days = set()
+
+            for slot_index in ordered_slots:
+                if sessions_needed <= 0:
+                    break
+
+                day_index, _, slot_end = free_slots[slot_index]
+                if day_index in used_days:
+                    continue
+
+                cursor = used_until[slot_index]
+                available = (slot_end - cursor).total_seconds() / 3600
+                if available < DEFAULT_SESSION_HOURS:
+                    continue
+
+                activity_end = cursor + timedelta(hours=DEFAULT_SESSION_HOURS)
+                activity_events.append((cursor, activity_end, goal.name))
+                used_until[slot_index] = activity_end
+                used_days.add(day_index)
+                sessions_needed -= 1
         else:
             remaining = goal.amount
 
-        preferred_order = [i for i in range(len(free_slots)) if slot_matches(i, goal.preferred)]
-        fallback_order = [i for i in range(len(free_slots)) if i not in preferred_order]
+            for slot_index in ordered_slots:
+                if remaining <= 0:
+                    break
 
-        for slot_index in preferred_order + fallback_order:
-            if remaining <= 0:
-                break
+                _, _, slot_end = free_slots[slot_index]
+                cursor = used_until[slot_index]
+                available = (slot_end - cursor).total_seconds() / 3600
+                if available <= 0:
+                    continue
 
-            _, slot_start, slot_end = free_slots[slot_index]
-            cursor = used_until[slot_index]
-            available = (slot_end - cursor).total_seconds() / 3600
-            if available <= 0:
-                continue
-
-            hours_to_use = min(remaining, available, 2)
-            activity_end = cursor + timedelta(hours=hours_to_use)
-            activity_events.append((cursor, activity_end, goal.name))
-            used_until[slot_index] = activity_end
-            remaining -= hours_to_use
+                hours_to_use = min(remaining, available, 2)
+                activity_end = cursor + timedelta(hours=hours_to_use)
+                activity_events.append((cursor, activity_end, goal.name))
+                used_until[slot_index] = activity_end
+                remaining -= hours_to_use
 
     return activity_events
