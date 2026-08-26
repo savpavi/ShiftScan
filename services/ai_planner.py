@@ -206,6 +206,47 @@ async def get_gemini_activity_plan(
     return parse_activity_plan(raw_plan, known_ids)
 
 
+def preferred_window(slot_start: datetime, preferred: str) -> Tuple[datetime, datetime]:
+    """
+    Bir slotun gunune capalanmis tercih penceresini [start, end) dondurur.
+
+    Pencere slotun kendi gununden kurulur, cunku find_free_slots gunun son
+    slotunu ertesi gunun 00:00'inda kapatir; ham .hour degerleri o uctan
+    yanlis okunur (bkz. slot_matches).
+    """
+    start_hour, end_hour = PREFERRED_WINDOWS[preferred]
+    day_start = slot_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        day_start + timedelta(hours=start_hour),
+        day_start + timedelta(hours=end_hour),
+    )
+
+
+def _placement_bounds(
+    slot_start: datetime,
+    slot_end: datetime,
+    cursor: datetime,
+    preferred: str,
+    clamp: bool,
+) -> Tuple[datetime, datetime]:
+    """
+    Bir slot icinde yerlestirmenin kullanabilecegi araligi dondurur.
+
+    clamp=True (tercihli gecis): imlec pencerenin basina kenetlenir ve
+    yerlestirme pencerenin sonunu asamaz. Aksi halde bir izin gununun tek
+    parca 07:00-24:00 slotu ucun uc pencereyle de kesistigi icin tercih
+    fiilen etkisiz kalir.
+
+    clamp=False (fallback gecisi): sinir yok; penceresine sigmayan aktivite
+    yine de bos bir yere konur.
+    """
+    if not clamp or preferred == "any":
+        return cursor, slot_end
+
+    window_start, window_end = preferred_window(slot_start, preferred)
+    return max(cursor, window_start), min(slot_end, window_end)
+
+
 def apply_activity_plan(
     free_slots: List[Tuple[int, datetime, datetime]],
     activity_plan: List[ActivityPlanItem],
@@ -214,15 +255,20 @@ def apply_activity_plan(
     """
     Aktivite planını boş slotlara çakışma olmadan yerleştirir
 
+    Model yalnizca gun ve saat sayisi dondurur, saat dilimi dondurmez; bu
+    yuzden tercih edilen zaman araligi burada uygulanir. Once pencereye
+    kenetlenmis bir gecis denenir, sigmayan saatler ikinci (serbest) geciste
+    yerlesir - generate_basic_plan ile ayni kural.
+
     Args:
         free_slots: Boş zaman slotları
         activity_plan: Dogrulanmis plan satirlari (bkz. parse_activity_plan)
-        goals: Aktivite hedefleri (id -> ad cozumu icin)
+        goals: Aktivite hedefleri (id -> ad ve tercih cozumu icin)
 
     Returns:
         Aktivite etkinlikleri listesi
     """
-    names = {goal.id: goal.name for goal in goals}
+    goals_by_id = {goal.id: goal for goal in goals}
     activity_events = []
 
     # Gün bazında boş slotları grupla
@@ -238,37 +284,42 @@ def apply_activity_plan(
 
     # Aktiviteleri yerleştir
     for plan_item in activity_plan:
-        activity_name = names.get(plan_item.activity_id)
-        if not activity_name:
+        goal = goals_by_id.get(plan_item.activity_id)
+        if goal is None:
             print(f"WARNING: Bilinmeyen aktivite id'si '{plan_item.activity_id}' atlandi")
             continue
 
+        activity_name = goal.name
         day = plan_item.day_index
-        hours_needed = plan_item.hours
+        remaining_hours = plan_item.hours
 
         # O gün için uygun slotları bul
         day_slots = [slot for slot in available_slots if slot['day_index'] == day]
-        remaining_hours = hours_needed
 
-        for slot in day_slots:
+        # Once tercih penceresi, sonra serbest yerlestirme
+        for clamp in (True, False):
             if remaining_hours <= 0:
                 break
 
-            available_in_slot = slot['end'] - slot['used_until']
-            available_hours = available_in_slot.total_seconds() / 3600
+            for slot in day_slots:
+                if remaining_hours <= 0:
+                    break
 
-            if available_hours <= 0:
-                continue
+                activity_start, limit = _placement_bounds(
+                    slot['start'], slot['end'], slot['used_until'], goal.preferred, clamp
+                )
+                available_hours = (limit - activity_start).total_seconds() / 3600
 
-            hours_to_place = min(remaining_hours, available_hours)
+                if available_hours <= 0:
+                    continue
 
-            activity_start = slot['used_until']
-            activity_end = activity_start + timedelta(hours=hours_to_place)
+                hours_to_place = min(remaining_hours, available_hours)
+                activity_end = activity_start + timedelta(hours=hours_to_place)
 
-            activity_events.append((activity_start, activity_end, activity_name))
+                activity_events.append((activity_start, activity_end, activity_name))
 
-            slot['used_until'] = activity_end
-            remaining_hours -= hours_to_place
+                slot['used_until'] = activity_end
+                remaining_hours -= hours_to_place
 
     return activity_events
 
@@ -280,8 +331,9 @@ def generate_basic_plan(
     """
     API olmadan basit aktivite plani olusturur (fallback).
 
-    Tercih edilen pencereye denk gelen slotlar once denenir; aktivite oraya
-    sigmazsa herhangi bir bos slota konur. Yerlesemeyen saatler sessizce
+    Tercih edilen pencereye denk gelen slotlar once denenir ve yerlestirme o
+    geciste pencerenin icine kenetlenir; aktivite oraya sigmazsa serbest
+    geciste herhangi bir bos slota konur. Yerlesemeyen saatler sessizce
     dusulur - kullaniciya bildirmek backlog madde 8.
     """
     activity_events = []
@@ -307,7 +359,10 @@ def generate_basic_plan(
     for goal in goals:
         preferred_order = [i for i in range(len(free_slots)) if slot_matches(i, goal.preferred)]
         fallback_order = [i for i in range(len(free_slots)) if i not in preferred_order]
-        ordered_slots = preferred_order + fallback_order
+        # Tercihli gecis pencereye kenetlenir, fallback gecisi serbesttir:
+        # slotun pencereyle kesismesi tek basina yerlestirmeyi pencereye
+        # sokmaz (tek parca 07:00-24:00 izin gunu hepsiyle kesisir).
+        passes = ((preferred_order, True), (fallback_order, False))
 
         if goal.unit == "days":
             # "N days per week" is N distinct day-sessions of
@@ -316,41 +371,47 @@ def generate_basic_plan(
             sessions_needed = int(goal.amount)
             used_days = set()
 
-            for slot_index in ordered_slots:
-                if sessions_needed <= 0:
-                    break
+            for slot_indices, clamp in passes:
+                for slot_index in slot_indices:
+                    if sessions_needed <= 0:
+                        break
 
-                day_index, _, slot_end = free_slots[slot_index]
-                if day_index in used_days:
-                    continue
+                    day_index, slot_start, slot_end = free_slots[slot_index]
+                    if day_index in used_days:
+                        continue
 
-                cursor = used_until[slot_index]
-                available = (slot_end - cursor).total_seconds() / 3600
-                if available < DEFAULT_SESSION_HOURS:
-                    continue
+                    cursor, limit = _placement_bounds(
+                        slot_start, slot_end, used_until[slot_index], goal.preferred, clamp
+                    )
+                    available = (limit - cursor).total_seconds() / 3600
+                    if available < DEFAULT_SESSION_HOURS:
+                        continue
 
-                activity_end = cursor + timedelta(hours=DEFAULT_SESSION_HOURS)
-                activity_events.append((cursor, activity_end, goal.name))
-                used_until[slot_index] = activity_end
-                used_days.add(day_index)
-                sessions_needed -= 1
+                    activity_end = cursor + timedelta(hours=DEFAULT_SESSION_HOURS)
+                    activity_events.append((cursor, activity_end, goal.name))
+                    used_until[slot_index] = activity_end
+                    used_days.add(day_index)
+                    sessions_needed -= 1
         else:
             remaining = goal.amount
 
-            for slot_index in ordered_slots:
-                if remaining <= 0:
-                    break
+            for slot_indices, clamp in passes:
+                for slot_index in slot_indices:
+                    if remaining <= 0:
+                        break
 
-                _, _, slot_end = free_slots[slot_index]
-                cursor = used_until[slot_index]
-                available = (slot_end - cursor).total_seconds() / 3600
-                if available <= 0:
-                    continue
+                    _, slot_start, slot_end = free_slots[slot_index]
+                    cursor, limit = _placement_bounds(
+                        slot_start, slot_end, used_until[slot_index], goal.preferred, clamp
+                    )
+                    available = (limit - cursor).total_seconds() / 3600
+                    if available <= 0:
+                        continue
 
-                hours_to_use = min(remaining, available, 2)
-                activity_end = cursor + timedelta(hours=hours_to_use)
-                activity_events.append((cursor, activity_end, goal.name))
-                used_until[slot_index] = activity_end
-                remaining -= hours_to_use
+                    hours_to_use = min(remaining, available, 2)
+                    activity_end = cursor + timedelta(hours=hours_to_use)
+                    activity_events.append((cursor, activity_end, goal.name))
+                    used_until[slot_index] = activity_end
+                    remaining -= hours_to_use
 
     return activity_events

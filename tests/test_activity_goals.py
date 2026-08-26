@@ -154,3 +154,72 @@ def test_basic_plan_matches_preferred_window_in_a_slot_ending_at_midnight():
     assert events
     start, _, _ = events[0]
     assert start.hour == 18
+
+
+def whole_day_slot(day_index: int):
+    """Izin gunu tek parca gelir: 07:00'den ertesi gunun 00:00'ina kadar."""
+    day = 24 + day_index
+    return (
+        day_index,
+        IST.localize(datetime(2026, 8, day, 7)),
+        IST.localize(datetime(2026, 8, day + 1, 0)),
+    )
+
+
+def test_basic_plan_places_inside_the_window_in_a_single_piece_day_slot():
+    """
+    Gercek veride bir izin gunu tek bir 07:00-24:00 slotudur ve ucun uc
+    penceresiyle de kesisir. Slotu secmek yeterli degil: yerlestirme de
+    pencerenin icinde olmali, yoksa tercih fiilen etkisizdir.
+    """
+    goals = [
+        ActivityGoal(id="a1", name="Evening yoga", amount=1, unit="hours", preferred="evening")
+    ]
+
+    events = generate_basic_plan([whole_day_slot(0)], goals)
+
+    assert len(events) == 1
+    start, end, _ = events[0]
+    assert start >= IST.localize(datetime(2026, 8, 24, 18))
+    assert end <= IST.localize(datetime(2026, 8, 24, 23))
+
+
+def test_basic_plan_days_unit_also_lands_inside_the_window():
+    goals = [ActivityGoal(id="a1", name="Sport", amount=1, unit="days", preferred="morning")]
+
+    events = generate_basic_plan([whole_day_slot(0)], goals)
+
+    assert len(events) == 1
+    start, end, _ = events[0]
+    assert start >= IST.localize(datetime(2026, 8, 24, 7))
+    assert end <= IST.localize(datetime(2026, 8, 24, 12))
+
+
+def test_ai_plan_placement_lands_inside_the_preferred_window():
+    """AI yolu da tercihi ayni sekilde uygulamali (bkz. generate_basic_plan)."""
+    goals = [
+        ActivityGoal(id="a1", name="Evening yoga", amount=1, unit="hours", preferred="evening")
+    ]
+    plan = [ActivityPlanItem(day_index=0, activity_id="a1", hours=1)]
+
+    events = apply_activity_plan([whole_day_slot(0)], plan, goals)
+
+    assert len(events) == 1
+    start, end, _ = events[0]
+    assert start >= IST.localize(datetime(2026, 8, 24, 18))
+    assert end <= IST.localize(datetime(2026, 8, 24, 23))
+
+
+def test_ai_plan_placement_falls_back_when_the_window_has_no_room():
+    """Pencereye sigmayan saat sessizce dusmez, bos zamana konur."""
+    goals = [
+        ActivityGoal(id="a1", name="Evening yoga", amount=2, unit="hours", preferred="evening")
+    ]
+    plan = [ActivityPlanItem(day_index=0, activity_id="a1", hours=2)]
+    slots = [slot(0, 7, 10)]  # aksam penceresiyle hic kesismiyor
+
+    events = apply_activity_plan(slots, plan, goals)
+
+    total = sum((end - start).total_seconds() / 3600 for start, end, _ in events)
+    assert total == 2.0
+    assert events[0][0].hour == 7
