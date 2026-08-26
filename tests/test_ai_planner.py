@@ -25,12 +25,12 @@ def free_slots():
 
 def test_item_without_activity_is_skipped():
     """Model 'activity' alanini atlarsa istek cokmemeli."""
-    assert parse_activity_plan([{"day": "Pazartesi", "hours": 1}]) == []
+    assert parse_activity_plan([{"day_index": 0, "hours": 1}]) == []
 
 
 def test_string_hours_is_coerced():
     """Model sayiyi string olarak dondurse de kabul edilmeli."""
-    items = parse_activity_plan([{"day": "Pazartesi", "activity": "Spor", "hours": "2"}])
+    items = parse_activity_plan([{"day_index": 0, "activity": "Spor", "hours": "2"}])
 
     assert len(items) == 1
     assert items[0].hours == 2.0
@@ -45,9 +45,9 @@ def test_non_list_payload_yields_empty_plan():
 
 def test_non_positive_hours_is_skipped():
     plan = [
-        {"day": "Pazartesi", "activity": "Spor", "hours": 0},
-        {"day": "Pazartesi", "activity": "Spor", "hours": -3},
-        {"day": "Pazartesi", "activity": "Spor", "hours": 99},
+        {"day_index": 0, "activity": "Spor", "hours": 0},
+        {"day_index": 0, "activity": "Spor", "hours": -3},
+        {"day_index": 0, "activity": "Spor", "hours": 99},
     ]
 
     assert parse_activity_plan(plan) == []
@@ -55,8 +55,8 @@ def test_non_positive_hours_is_skipped():
 
 def test_valid_items_survive_alongside_invalid_ones():
     plan = [
-        {"day": "Pazartesi", "hours": 1},
-        {"day": "Pazartesi", "activity": "Spor", "hours": 2},
+        {"day_index": 0, "hours": 1},
+        {"day_index": 0, "activity": "Spor", "hours": 2},
     ]
 
     items = parse_activity_plan(plan)
@@ -65,7 +65,7 @@ def test_valid_items_survive_alongside_invalid_ones():
 
 
 def test_apply_activity_plan_places_validated_item(free_slots):
-    items = [ActivityPlanItem(day="Pazartesi", activity="Spor", hours=2)]
+    items = [ActivityPlanItem(day_index=0, activity="Spor", hours=2)]
 
     events = apply_activity_plan(free_slots, items)
 

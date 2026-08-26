@@ -38,7 +38,7 @@ MAX_ACTIVITY_HOURS = 24
 class ActivityPlanItem(BaseModel):
     """Modelin dondurdugu tek bir plan satiri."""
 
-    day: str
+    day_index: int = Field(ge=0, le=6)
     activity: str
     hours: float = Field(gt=0, le=MAX_ACTIVITY_HOURS)
 
@@ -100,31 +100,29 @@ def configure_gemini():
 
 
 def create_gemini_activity_prompt(
-    free_slots: List[Tuple[str, datetime, datetime]],
+    free_slots: List[Tuple[int, datetime, datetime]],
     activities: Dict
 ) -> str:
     """
     Gemini için sadece aktivite dağılımı isteyen prompt oluşturur
-    
+
     Args:
         free_slots: Boş zaman slotları
         activities: Aktivite hedefleri
-    
+
     Returns:
         Prompt string
     """
     # Boş slotları özetle
-    slot_summary = "BOŞ ZAMAN ARALIKLARI:\n"
+    slot_summary = "FREE TIME (day index 0 = Monday):\n"
     day_totals = {}
-    
-    for day_name, start, end in free_slots:
-        duration = (end - start).total_seconds() / 3600  # saat
-        if day_name not in day_totals:
-            day_totals[day_name] = 0
-        day_totals[day_name] += duration
-    
-    for day, total_hours in day_totals.items():
-        slot_summary += f"- {day}: {total_hours:.1f} saat boş\n"
+
+    for day_index, start, end in free_slots:
+        duration = (end - start).total_seconds() / 3600
+        day_totals[day_index] = day_totals.get(day_index, 0) + duration
+
+    for day_index in sorted(day_totals):
+        slot_summary += f"- day {day_index}: {day_totals[day_index]:.1f} hours free\n"
     
     # Aktivite hedefleri
     activity_goals = "AKTİVİTE HEDEFLERİ:\n"
@@ -155,15 +153,15 @@ KURALLAR:
 
 Çıktıyı SADECE JSON formatında ver, başka açıklama yok:
 [
-  {{"day": "Pazartesi", "activity": "Spor", "hours": 1}},
-  {{"day": "Salı", "activity": "İçerik Üretimi", "hours": 2}}
+  {{"day_index": 0, "activity": "Spor", "hours": 1}},
+  {{"day_index": 1, "activity": "İçerik Üretimi", "hours": 2}}
 ]"""
     
     return prompt
 
 
 async def get_gemini_activity_plan(
-    free_slots: List[Tuple[str, datetime, datetime]],
+    free_slots: List[Tuple[int, datetime, datetime]],
     activities: Dict,
     timeout: float = 30.0,
 ) -> List[ActivityPlanItem]:
@@ -222,35 +220,35 @@ async def get_gemini_activity_plan(
 
 
 def apply_activity_plan(
-    free_slots: List[Tuple[str, datetime, datetime]],
+    free_slots: List[Tuple[int, datetime, datetime]],
     activity_plan: List[ActivityPlanItem]
 ) -> List[Tuple[datetime, datetime, str]]:
     """
     Aktivite planını boş slotlara çakışma olmadan yerleştirir
-    
+
     Args:
         free_slots: Boş zaman slotları
         activity_plan: Dogrulanmis plan satirlari (bkz. parse_activity_plan)
-    
+
     Returns:
         Aktivite etkinlikleri listesi
     """
     activity_events = []
-    
+
     # Gün bazında boş slotları grupla
     available_slots = []
-    for day_name, start, end in free_slots:
+    for day_index, start, end in free_slots:
         available_slots.append({
-            'day': day_name,
+            'day': day_index,
             'start': start,
             'end': end,
             'duration': (end - start).total_seconds() / 3600,
             'used_until': start
         })
-    
+
     # Aktiviteleri yerleştir
     for plan_item in activity_plan:
-        day = plan_item.day
+        day = plan_item.day_index
         activity_key = plan_item.activity
         hours_needed = plan_item.hours
 
@@ -293,7 +291,7 @@ def apply_activity_plan(
 
 
 def generate_basic_plan(
-    free_slots: List[Tuple[str, datetime, datetime]],
+    free_slots: List[Tuple[int, datetime, datetime]],
     activities: Dict
 ) -> List[Tuple[datetime, datetime, str]]:
     """
@@ -328,7 +326,7 @@ def generate_basic_plan(
         remaining = activity['hours']
         
         while remaining > 0 and slot_index < len(free_slots):
-            day_name, start, end = free_slots[slot_index]
+            _, start, end = free_slots[slot_index]
             slot_duration = (end - start).total_seconds() / 3600
             
             hours_to_use = min(remaining, slot_duration, 2)  # Max 2 saat blok

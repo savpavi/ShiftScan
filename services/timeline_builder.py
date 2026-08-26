@@ -7,9 +7,6 @@ from typing import List, Tuple, Dict
 from datetime import date, datetime, time, timedelta
 import pytz
 
-# Gun adlari (Pazartesi = 0). Vardiya metni ayristirmasi tarayicida yapilir.
-DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-
 # Gece aktivite yasagi: bu saatten once slot uretilmez
 NIGHT_END_HOUR = 7
 
@@ -75,7 +72,7 @@ def find_free_slots(
     timeline: List[Tuple[datetime, datetime, str]],
     week_start: date,
     timezone: str,
-) -> List[Tuple[str, datetime, datetime]]:
+) -> List[Tuple[int, datetime, datetime]]:
     """
     Timeline'daki bos zaman slotlarini bul
 
@@ -90,14 +87,13 @@ def find_free_slots(
         timezone: Zaman dilimi (pytz formatında, örneğin 'Europe/Istanbul')
 
     Returns:
-        Free slots listesi: [(day_name, start, end), ...]
+        Free slots listesi: [(day_index, start, end), ...] - day_index 0-6, Pazartesi=0
     """
     free_slots = []
     local_tz = pytz.timezone(timezone)
 
     for day_offset in range(7):
         current_day = week_start + timedelta(days=day_offset)
-        day_name = DAY_NAMES[day_offset]
 
         # Gun sinirlari: [00:00, ertesi gun 00:00) - yarim acik aralik
         day_start = local_tz.localize(datetime.combine(current_day, time.min))
@@ -125,10 +121,10 @@ def find_free_slots(
         cursor = earliest
         for block_start, block_end, _ in day_blocks:
             if block_start > cursor:
-                free_slots.append((day_name, cursor, block_start))
+                free_slots.append((day_offset, cursor, block_start))
             cursor = max(cursor, block_end)
 
         if cursor < day_end:
-            free_slots.append((day_name, cursor, day_end))
+            free_slots.append((day_offset, cursor, day_end))
 
     return free_slots
