@@ -358,11 +358,19 @@ def generate_basic_plan(
 
     for goal in goals:
         preferred_order = [i for i in range(len(free_slots)) if slot_matches(i, goal.preferred)]
-        fallback_order = [i for i in range(len(free_slots)) if i not in preferred_order]
+        matched = set(preferred_order)
+        fallback_order = [i for i in range(len(free_slots)) if i not in matched]
         # Tercihli gecis pencereye kenetlenir, fallback gecisi serbesttir:
         # slotun pencereyle kesismesi tek basina yerlestirmeyi pencereye
         # sokmaz (tek parca 07:00-24:00 izin gunu hepsiyle kesisir).
-        passes = ((preferred_order, True), (fallback_order, False))
+        #
+        # Serbest gecis TUM slotlari yeniden yuruyor, yalnizca eslesmeyenleri
+        # degil: pencereyle kesisip icinde oturum yeri olmayan bir slot aksi
+        # halde hic denenmezdi ve aktivite sessizce duserdi. apply_activity_plan
+        # de ayni sekilde davranir; iki planlayici `preferred` konusunda ayni
+        # seyi kastetmeli. used_until zaten ilerledigi icin cift yerlestirme
+        # riski yok.
+        passes = ((preferred_order, True), (preferred_order + fallback_order, False))
 
         if goal.unit == "days":
             # "N days per week" is N distinct day-sessions of

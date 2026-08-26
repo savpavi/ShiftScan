@@ -11,7 +11,7 @@ from services.ai_planner import (
     generate_basic_plan,
     parse_activity_plan,
 )
-from services.models import ActivityGoal
+from services.models import DEFAULT_SESSION_HOURS, ActivityGoal
 
 IST = pytz.timezone("Europe/Istanbul")
 
@@ -223,3 +223,26 @@ def test_ai_plan_placement_falls_back_when_the_window_has_no_room():
     total = sum((end - start).total_seconds() / 3600 for start, end, _ in events)
     assert total == 2.0
     assert events[0][0].hour == 7
+
+
+def test_fallback_pass_retries_a_window_matching_slot_unclamped():
+    """Pencereyle kesisen ama icinde yer olmayan slot ikinci gecisde de denenmeli.
+
+    apply_activity_plan (AI yolu) tum slotlari kenetlenmemis olarak yeniden
+    yuruyor; generate_basic_plan da ayni davranmali, yoksa iki planlayici
+    `preferred` konusunda ayrisir ve eskiden yerlesen aktivite dusurulur.
+    """
+    goals = [ActivityGoal(id="a1", name="Yoga", amount=1, unit="days", preferred="evening")]
+    # 22:30 -> ertesi gun 00:00: aksam penceresiyle (18-23) kesisiyor ama
+    # pencere icinde yalnizca 30 dakika var, bir oturuma yetmiyor.
+    late = (
+        0,
+        IST.localize(datetime(2026, 8, 24, 22, 30)),
+        IST.localize(datetime(2026, 8, 25, 0, 0)),
+    )
+
+    events = generate_basic_plan([late], goals)
+
+    assert events, "pencereye sigmayan aktivite serbest gecisde yerlesmeliydi"
+    start, end, _ = events[0]
+    assert (end - start).total_seconds() / 3600 == DEFAULT_SESSION_HOURS
