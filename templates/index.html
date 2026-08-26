@@ -325,14 +325,14 @@ Pazar 10:00 - 18:00"
 
           <template id="activity-row-template">
             <li class="activity-row">
-              <input type="checkbox" class="checkbox activity-enabled" checked />
-              <input type="text" class="input activity-name" maxlength="80" />
-              <input type="number" class="input activity-amount" min="1" max="168" step="1" />
-              <select class="select activity-unit">
+              <input type="checkbox" class="checkbox activity-enabled" checked data-i18n-aria-label="ariaActivityEnabled" aria-label="Aktiviteyi plana dahil et" />
+              <input type="text" class="input activity-name" maxlength="80" data-i18n-aria-label="ariaActivityName" aria-label="Aktivite adı" />
+              <input type="number" class="input activity-amount" min="1" max="168" step="1" data-i18n-aria-label="ariaActivityAmount" aria-label="Haftalık miktar" />
+              <select class="select activity-unit" data-i18n-aria-label="ariaActivityUnit" aria-label="Birim">
                 <option value="hours" data-i18n="unitHours">saat</option>
                 <option value="days" data-i18n="unitDays">gün</option>
               </select>
-              <select class="select activity-preferred">
+              <select class="select activity-preferred" data-i18n-aria-label="ariaActivityPreferred" aria-label="Tercih edilen zaman">
                 <option value="any" data-i18n="preferAny">Fark etmez</option>
                 <option value="morning" data-i18n="preferMorning">Sabah</option>
                 <option value="afternoon" data-i18n="preferAfternoon">Öğlen</option>

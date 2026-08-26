@@ -110,7 +110,7 @@ def generate_final_ics(
     labels: CalendarLabels
 ) -> str:
     """
-    Timeline ve aktivitelerden son ICS'i olustur (Floating Time - Europe/Istanbul)
+    Timeline ve aktivitelerden son ICS'i olustur (floating local time)
 
     Args:
         timeline: Vardiya ve uyku bloklari

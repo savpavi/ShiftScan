@@ -54,7 +54,7 @@ class OCRRequest(BaseModel):
 
 class PlanRequest(BaseModel):
     start_date: str
-    timezone: str = "Europe/Istanbul"
+    timezone: str = "UTC"
     shift_events: List[ShiftEvent]
     activities: List[ActivityGoal] = Field(min_length=1, max_length=MAX_ACTIVITIES)
     labels: CalendarLabels = CalendarLabels()
