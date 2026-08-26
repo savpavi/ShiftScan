@@ -138,3 +138,35 @@ test('payload activity with missing preferred defaults to any', () => {
     const payload = A.toPayload(list);
     assert.strictEqual(payload[0].preferred, 'any');
 });
+
+test('malformed entries are dropped instead of poisoning the rendered list', () => {
+    // A corrupt element used to reach renderActivities and throw there, which
+    // the user could only recover from by clearing localStorage by hand.
+    const stored = [
+        null,
+        'not an object',
+        { id: 'x1', name: 'Guitar', amount: 2, unit: 'hours', preferred: 'evening' },
+        { name: 'no id', amount: 1, unit: 'hours' },
+        { id: 'x2', amount: 1, unit: 'hours' }
+    ];
+    const storage = fakeStorage({ [A.STORAGE_KEY]: JSON.stringify(stored) });
+
+    assert.deepStrictEqual(A.load(storage, NAMES), [stored[2]]);
+});
+
+test('an emptied or non-positive amount is rejected instead of being stored as 0', () => {
+    // Number('') is 0, and ActivityGoal.amount is gt=0 on the server: storing
+    // it would survive a reload and 422 the next plan request.
+    assert.strictEqual(A.parseAmount(''), null);
+    assert.strictEqual(A.parseAmount('   '), null);
+    assert.strictEqual(A.parseAmount('0'), null);
+    assert.strictEqual(A.parseAmount('-3'), null);
+    assert.strictEqual(A.parseAmount('abc'), null);
+    assert.strictEqual(A.parseAmount(Infinity), null);
+});
+
+test('a valid amount is parsed to a number', () => {
+    assert.strictEqual(A.parseAmount('2'), 2);
+    assert.strictEqual(A.parseAmount('1.5'), 1.5);
+    assert.strictEqual(A.parseAmount(4), 4);
+});

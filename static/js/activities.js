@@ -42,7 +42,14 @@
             const raw = storage.getItem(STORAGE_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) return parsed;
+                // Sadece dizi olmasi yetmez: bozuk bir eleman (null, string,
+                // id'siz kayit) render sirasinda patlar ve kullanici ancak
+                // localStorage'i elle temizleyerek kurtulur.
+                if (Array.isArray(parsed)) {
+                    return parsed.filter(function (e) {
+                        return e && typeof e.id === 'string' && typeof e.name === 'string';
+                    });
+                }
             }
         } catch (err) {
             // Bozuk veya erisilemeyen depolama varsayilanlari engellememeli
@@ -56,6 +63,17 @@
         } catch (err) {
             // Depolama dolu veya kapali olabilir; plan uretimi yine calisir
         }
+    }
+
+    // Bos alan Number('') === 0 verir; 0 kaydedilirse hem localStorage'da
+    // kalir hem de sunucudaki amount > 0 kuralina takilip 422 dondurur.
+    // Gecersiz girdi icin null doner: cagiran taraf kaydetmez ama kullaniciyi
+    // yazarken engellemez.
+    function parseAmount(value) {
+        const parsed = Number(value);
+        if (typeof value === 'string' && value.trim() === '') return null;
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return parsed;
     }
 
     function nextId(list) {
@@ -97,6 +115,7 @@
     return {
         STORAGE_KEY: STORAGE_KEY,
         defaultActivities: defaultActivities,
+        parseAmount: parseAmount,
         load: load,
         save: save,
         addActivity: addActivity,

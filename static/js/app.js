@@ -268,7 +268,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const activityListEl = document.getElementById('activity-list');
     const activityTemplate = document.getElementById('activity-row-template');
     const addActivityBtn = document.getElementById('add-activity');
-    let activityList = ShiftScanActivities.load(localStorage, activityNames());
+
+    // Aktivite listesi opsiyonel bir eklenti: modül yüklenmezse veya
+    // şablon/liste elemanları eksikse tarama → ICS akışı etkilenmemeli.
+    // Burada atılacak bir hata DOMContentLoaded'i keser ve altındaki
+    // cropper/OCR/convert bağlamalarını hiç kurulmadan bırakır.
+    const activitiesAvailable = Boolean(
+        window.ShiftScanActivities && activityListEl && activityTemplate && addActivityBtn
+    );
+    let activityList = [];
 
     function activityNames() {
         const keys = ['content-production', 'sports', 'reading', 'social', 'gaming'];
@@ -306,7 +314,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             name.addEventListener('input', () => { activity.name = name.value; persistActivities(); });
             amount.addEventListener('input', () => {
-                activity.amount = Number(amount.value);
+                // Alan silinip yeniden yazılırken Number('') === 0 kaydedilir,
+                // reload'dan sonra da kalır ve sunucu 422 döner. Geçersiz
+                // değeri kaydetmiyoruz ama satırı da kilitlemiyoruz.
+                const parsed = ShiftScanActivities.parseAmount(amount.value);
+                if (parsed === null) return;
+                activity.amount = parsed;
                 persistActivities();
             });
             unit.addEventListener('change', () => { activity.unit = unit.value; persistActivities(); });
@@ -332,21 +345,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    addActivityBtn.addEventListener('click', () => {
-        if (activityList.length >= MAX_ACTIVITIES) {
-            showAlert(window.i18n ? window.i18n.t('activityLimitReached') : 'You can add up to 20 activities.', 'warning');
-            return;
-        }
-        activityList = ShiftScanActivities.addActivity(activityList, {
-            name: window.i18n ? window.i18n.t('addActivity') : 'Activity',
-            amount: 1,
-            unit: 'hours'
-        });
-        persistActivities();
-        renderActivities();
-    });
+    if (activitiesAvailable) {
+        activityList = ShiftScanActivities.load(localStorage, activityNames());
 
-    renderActivities();
+        addActivityBtn.addEventListener('click', () => {
+            if (activityList.length >= MAX_ACTIVITIES) {
+                showAlert(window.i18n ? window.i18n.t('activityLimitReached') : 'You can add up to 20 activities.', 'warning');
+                return;
+            }
+            activityList = ShiftScanActivities.addActivity(activityList, {
+                // 'addActivity' butonun kendi etiketi ve başında '+' taşıyor;
+                // ICS'e 'SUMMARY:+ Add Activity' düşmesin diye ayrı anahtar.
+                name: window.i18n ? window.i18n.t('newActivityName') : 'New activity',
+                amount: 1,
+                unit: 'hours'
+            });
+            persistActivities();
+            renderActivities();
+        });
+
+        renderActivities();
+    } else {
+        console.warn('ShiftScan: aktivite listesi yüklenemedi, gelişmiş mod devre dışı.');
+    }
 
     // ============================================
     // GÖRSEL YÜKLEME & CROPPER
@@ -1212,7 +1233,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Aktivite listesini payload'a çevir (kapatılmış/silinmiş satırlar hariç)
-                const activityPayload = ShiftScanActivities.toPayload(activityList);
+                const activityPayload = activitiesAvailable
+                    ? ShiftScanActivities.toPayload(activityList)
+                    : [];
 
                 if (activityPayload.length === 0) {
                     showAlert(window.i18n?.t('selectActivity') || 'Lütfen en az bir aktivite seçin ve süre/gün belirtin!', 'warning');
@@ -1252,7 +1275,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP hatası: ${response.status}`);
+                    // Ham durum kodu tek başına çıkmaz yol: 422 hangi alanın
+                    // reddedildiğini, 400 hangi saat diliminin tanınmadığını
+                    // yalnızca gövdedeki `detail` söylüyor (bkz. /ocr).
+                    // FastAPI doğrulama hatalarında `detail` bir liste gelir;
+                    // düz string'e zorlanırsa "[object Object]" görünür.
+                    const errorData = await response.json().catch(() => ({}));
+                    const detail = errorData.detail;
+                    const message = Array.isArray(detail)
+                        ? detail.map((d) => d && d.msg).filter(Boolean).join('; ')
+                        : detail;
+                    throw new Error(message || `HTTP ${response.status}`);
                 }
 
                 const result = await response.json();
