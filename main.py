@@ -26,8 +26,8 @@ from services.ai_planner import (
 )
 
 app = FastAPI(
-    title="Vardiya OCR to ICS",
-    description="Vardiya görselinizi AI destekli OCR ile tarayıp ICS takvim formatına dönüştüren web uygulaması"
+    title="Shift Schedule OCR to ICS",
+    description="A web app that scans your shift schedule image with AI-powered OCR and converts it into ICS calendar format"
 )
 
 # Limitler
