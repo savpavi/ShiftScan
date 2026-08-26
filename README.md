@@ -38,11 +38,12 @@ App runs at http://localhost:8000
 
 ## How It Works
 
-1. Select the week's start date
-2. Upload and crop your shift schedule image
-3. Click "Scan" for OCR (or enter manually)
-4. Click "Preview & Convert" to generate ICS
-5. Download your calendar file
+1. Set up your activities (or use the default set)
+2. Select the week's start date
+3. Upload and crop your shift schedule image
+4. Click "Scan" for OCR (or enter manually)
+5. Click "Preview & Convert" to generate ICS
+6. Download your calendar file
 
 ## Supported Formats
 
@@ -58,6 +59,22 @@ Wed 14:00 - 22:00
 
 ### Day Off Keywords
 OFF, LEAVE, REST, HOLIDAY
+
+## Activities
+
+ShiftScan can schedule your free time around activities. You define what those activities
+are — they arrive with sensible defaults (content production, sports, reading, social,
+gaming) but you can rename, delete, or add new ones.
+
+Each activity has:
+- **Name**: what you call it
+- **Amount**: how much time per week you want for it (a number)
+- **Unit**: whether that's in hours or days
+- **Preferred time**: when you'd like to do it (morning, afternoon, evening, or any time)
+
+Your activity list is stored in your browser's `localStorage` under the key
+`shiftscan-activities-v1` and never leaves your device except as part of a plan request
+to the backend. You can have between 1 and 20 activities enabled at once.
 
 ## Privacy
 
@@ -83,8 +100,8 @@ app falls back to a rule-based planner and stays fully functional.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (31 tests)
-node --test tests/js/*.test.js  # ICS generation in the browser (9 tests)
+pytest                        # backend (70 tests)
+node --test tests/js/*.test.js  # browser tests (25 tests)
 ```
 
 Both suites run on every push and pull request via GitHub Actions
