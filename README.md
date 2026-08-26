@@ -38,12 +38,11 @@ App runs at http://localhost:8000
 
 ## How It Works
 
-1. Set up your activities (or use the default set)
-2. Select the week's start date
-3. Upload and crop your shift schedule image
-4. Click "Scan" for OCR (or enter manually)
-5. Click "Preview & Convert" to generate ICS
-6. Download your calendar file
+1. Select the week's start date
+2. Upload and crop your shift schedule image
+3. Click "Scan" for OCR (or enter manually)
+4. Click "Preview & Convert" to generate ICS
+5. Download your calendar file
 
 ## Supported Formats
 
@@ -62,9 +61,10 @@ OFF, LEAVE, REST, HOLIDAY
 
 ## Activities
 
-ShiftScan can schedule your free time around activities. You define what those activities
-are — they arrive with sensible defaults (content production, sports, reading, social,
-gaming) but you can rename, delete, or add new ones.
+Activities are an optional feature behind the **Advanced Mode** toggle. When enabled,
+ShiftScan can schedule your free time around activities you define. Default activities
+are provided (Content Creation, Sports, Reading, Social Life, Gaming / Rest) but you can
+rename, delete, or add new ones.
 
 Each activity has:
 - **Name**: what you call it

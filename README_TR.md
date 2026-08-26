@@ -36,12 +36,11 @@ Uygulama http://localhost:8000 adresinde çalışacaktır.
 
 ## Kullanım
 
-1. Aktivitelerinizi ayarlayın (veya varsayılan seti kullanın)
-2. Haftanın başlangıç tarihini seçin
-3. Vardiya programı görselini yükleyin ve kırpın
-4. "Seçili Alanı Tara" ile OCR yapın (veya manuel girin)
-5. "Önizle ve Dönüştür" ile ICS oluşturun
-6. Takvim dosyasını indirin
+1. Haftanın başlangıç tarihini seçin
+2. Vardiya programı görselini yükleyin ve kırpın
+3. "Seçili Alanı Tara" ile OCR yapın (veya manuel girin)
+4. "Önizle ve Dönüştür" ile ICS oluşturun
+5. Takvim dosyasını indirin
 
 ## Desteklenen Formatlar
 
@@ -60,10 +59,10 @@ OFF, İZİN, BOŞ, TATİL, RAPOR
 
 ## Aktiviteler
 
-ShiftScan boş zamanınızı aktivitelerin etrafına planlayabilir. Bu aktivitelerin neler
-olacağını siz belirlersiniz — uygulama makul varsayılanlarla başlar (içerik üretimi,
-spor, okuma, sosyal, oyun), ancak bunları yeniden adlandırabilir, silebilir veya yeni
-olanlar ekleyebilirsiniz.
+Aktiviteler **Gelişmiş Mod** kaldırması arkasında opsiyonel bir özelliktir. Etkinleştirildiğinde,
+ShiftScan boş zamanınızı tanımladığınız aktivitelerin etrafına planlayabilir. Varsayılan
+aktiviteler sağlanır (İçerik Üretimi, Spor, Kitap Okuma, Sosyal Yaşam, Oyun / Dinlenme)
+ancak bunları yeniden adlandırabilir, silebilir veya yeni olanlar ekleyebilirsiniz.
 
 Her aktivitenin:
 - **Adı**: onu nasıl çağırdığınız
