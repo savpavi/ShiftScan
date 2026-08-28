@@ -100,8 +100,8 @@ app falls back to a rule-based planner and stays fully functional.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (70 tests)
-node --test tests/js/*.test.js  # browser tests (25 tests)
+pytest                        # backend (75 tests)
+node --test tests/js/*.test.js  # browser tests (28 tests)
 ```
 
 Both suites run on every push and pull request via GitHub Actions
