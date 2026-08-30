@@ -321,7 +321,8 @@ def place_activity_plan(
     """
     goals_by_id = {goal.id: goal for goal in goals}
     activity_events = []
-    unplaced_hours: dict = {}
+    placed_hours: dict = {goal.id: 0.0 for goal in goals}
+    placed_days: dict = {goal.id: set() for goal in goals}
 
     # Gün bazında boş slotları grupla
     available_slots = []
@@ -372,14 +373,19 @@ def place_activity_plan(
 
                 slot['used_until'] = activity_end
                 remaining_hours -= hours_to_place
+                placed_hours[goal.id] += hours_to_place
+                placed_days[goal.id].add(day)
 
-        if remaining_hours > 0:
-            unplaced_hours[goal.id] = unplaced_hours.get(goal.id, 0) + remaining_hours
-
-    unplaced = [
-        _unplaced_entry(goals_by_id[goal_id], hours)
-        for goal_id, hours in unplaced_hours.items()
-    ]
+    # Eksik, modelin istegine degil kullanicinin hedefine gore olculur:
+    # model 4 saatlik hedefe 1 saat planlamissa 3 saat eksiktir.
+    unplaced = []
+    for goal in goals:
+        if goal.unit == "days":
+            missing = goal.amount - len(placed_days[goal.id])
+        else:
+            missing = goal.amount - placed_hours[goal.id]
+        if missing > 0.01:
+            unplaced.append(_unplaced_entry(goal, missing))
     return activity_events, unplaced
 
 
