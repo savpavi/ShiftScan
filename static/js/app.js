@@ -8,6 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // KONFİGÜRASYON
     // ============================================
     
+    // Ceviri kisayolu: i18n yoksa Ingilizce yedek metin
+    function tr(key, fallback, params) {
+        return window.i18n ? window.i18n.t(key, params) : fallback;
+    }
+
+    const ADVANCED_MODE_KEY = 'shiftscan-advanced-mode';
+
     const dayMap = {
         'pzt': 0, 'pazartesi': 0, 'mon': 0, 'monday': 0,
         'sal': 1, 'salı': 1, 'sali': 1, 'tue': 1, 'tuesday': 1,
@@ -167,8 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (elements.languageSelect) {
         // Kaydedilmiş dili yükle
-        const savedLang = localStorage.getItem('vardiya-lang') || 'tr';
-        elements.languageSelect.value = savedLang;
+        elements.languageSelect.value = window.i18n ? window.i18n.currentLang : 'en';
         
         // Dil değişikliği
         elements.languageSelect.addEventListener('change', () => {
@@ -228,17 +234,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // GELİŞMİŞ MOD TOGGLE
     // ============================================
     
+    function applyAdvancedMode(on) {
+        isAdvancedMode = on;
+        elements.advancedModeToggle.checked = on;
+        elements.advancedSection.classList.toggle('hidden', !on);
+        elements.generatePlanBtn.classList.toggle('hidden', !on);
+    }
+
     if (elements.advancedModeToggle) {
+        // Varsayilan kapali; bir kez acan kullanici icin tercih hatirlanir.
+        let remembered = false;
+        try { remembered = localStorage.getItem(ADVANCED_MODE_KEY) === '1'; } catch (e) { /* yok say */ }
+        applyAdvancedMode(remembered);
+
         elements.advancedModeToggle.addEventListener('change', () => {
-            isAdvancedMode = elements.advancedModeToggle.checked;
-            
-            if (isAdvancedMode) {
-                elements.advancedSection.classList.remove('hidden');
-                elements.generatePlanBtn.classList.remove('hidden');
-            } else {
-                elements.advancedSection.classList.add('hidden');
-                elements.generatePlanBtn.classList.add('hidden');
-            }
+            applyAdvancedMode(elements.advancedModeToggle.checked);
+            try { localStorage.setItem(ADVANCED_MODE_KEY, isAdvancedMode ? '1' : '0'); } catch (e) { /* yok say */ }
         });
     }
 
@@ -516,9 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const parsedShift = parseLineToShifts(nanonetsResult.text);
                     elements.shiftText.value = parsedShift;
 
-                    toast.success(window.i18n?.currentLang === 'en'
-                        ? 'OCR completed with Nanonets AI!'
-                        : 'Nanonets AI ile OCR tamamlandı!');
+                    toast.success(tr('ocrNanonetsDone', 'OCR completed with Nanonets AI!'));
 
                     elements.shiftText.scrollIntoView({ behavior: 'smooth' });
                     return;
@@ -549,13 +558,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             elements.shiftText.value = parsedShift;
 
                             if (tesseractResult.confidence < 60) {
-                                toast.warning(window.i18n?.currentLang === 'en'
-                                    ? 'Low confidence - please check and edit'
-                                    : 'Düşük güven - lütfen kontrol edip düzenleyin');
+                                toast.warning(tr('ocrLowConfidence', 'Low confidence - please check and edit'));
                             } else {
-                                toast.info(window.i18n?.currentLang === 'en'
-                                    ? 'OCR completed with Tesseract (fallback)'
-                                    : 'Tesseract ile OCR tamamlandı (yedek)');
+                                toast.info(tr('ocrTesseractDone', 'OCR completed with Tesseract (fallback)'));
                             }
                         }
 
@@ -756,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const li = document.createElement('li');
                 li.className = 'preview-item';
                 
-                const dateStr = ev.start.toLocaleDateString(window.i18n?.currentLang === 'en' ? 'en-US' : 'tr-TR', { 
+                const dateStr = ev.start.toLocaleDateString(window.i18n ? window.i18n.locale() : 'en-US', { 
                     weekday: 'short', 
                     day: 'numeric', 
                     month: 'short' 
@@ -922,15 +927,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Bildirim
             const dijitalMsg = elements.dijitalAcentelik?.checked ? ' + Dijital Acentelik' : '';
             if (repeatWeeks > 1) {
-                const msg = window.i18n?.currentLang === 'en' 
-                    ? `ICS file downloaded with ${repeatWeeks} weeks${dijitalMsg}!`
-                    : `${repeatWeeks} haftalık ICS dosyası indirildi${dijitalMsg}!`;
-                toast.success(msg);
+                toast.success(tr('icsDownloadedWeeks', `ICS file downloaded with ${repeatWeeks} weeks${dijitalMsg}!`, { weeks: repeatWeeks, extra: dijitalMsg }));
             } else {
-                const msg = window.i18n?.currentLang === 'en' 
-                    ? `ICS file downloaded${dijitalMsg}!` 
-                    : `ICS dosyası indirildi${dijitalMsg}!`;
-                toast.success(msg);
+                toast.success(tr('icsDownloaded', `ICS file downloaded${dijitalMsg}!`, { extra: dijitalMsg }));
             }
         });
     }
@@ -958,14 +957,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 
-                showLoading(window.i18n?.currentLang === 'en' ? 'Creating PDF...' : 'PDF oluşturuluyor...');
+                showLoading(tr('pdfCreating', 'Creating PDF...'));
                 await window.exportModule.exportToPDF(allEvents);
                 hideLoading();
-                toast.success(window.i18n?.currentLang === 'en' ? 'PDF downloaded!' : 'PDF indirildi!');
+                toast.success(tr('pdfDownloaded', 'PDF downloaded!'));
             } catch (error) {
                 hideLoading();
                 console.error('PDF export error:', error);
-                toast.error(window.i18n?.currentLang === 'en' ? 'PDF export failed' : 'PDF oluşturulamadı');
+                toast.error(tr('pdfFailed', 'PDF export failed'));
             }
         });
     }
@@ -993,14 +992,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
                 
-                showLoading(window.i18n?.currentLang === 'en' ? 'Creating Excel...' : 'Excel oluşturuluyor...');
+                showLoading(tr('excelCreating', 'Creating Excel...'));
                 await window.exportModule.exportToExcel(allEvents);
                 hideLoading();
-                toast.success(window.i18n?.currentLang === 'en' ? 'Excel downloaded!' : 'Excel indirildi!');
+                toast.success(tr('excelDownloaded', 'Excel downloaded!'));
             } catch (error) {
                 hideLoading();
                 console.error('Excel export error:', error);
-                toast.error(window.i18n?.currentLang === 'en' ? 'Excel export failed' : 'Excel oluşturulamadı');
+                toast.error(tr('excelFailed', 'Excel export failed'));
             }
         });
     }
@@ -1076,7 +1075,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
             } catch (error) {
                 console.error('QR kod oluşturma hatası:', error);
-                toast.error(window.i18n?.currentLang === 'en' ? 'QR code generation failed' : 'QR kod oluşturulamadı');
+                toast.error(tr('qrFailed', 'QR code generation failed'));
             }
         });
     }
@@ -1103,7 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentShareUrl) {
                 try {
                     await navigator.clipboard.writeText(currentShareUrl);
-                    toast.success(window.i18n?.currentLang === 'en' ? 'Link copied!' : 'Link kopyalandı!');
+                    toast.success(tr('linkCopied', 'Link copied!'));
                 } catch (error) {
                     // Fallback for older browsers
                     const textArea = document.createElement('textarea');
@@ -1112,7 +1111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     textArea.select();
                     document.execCommand('copy');
                     document.body.removeChild(textArea);
-                    toast.success(window.i18n?.currentLang === 'en' ? 'Link copied!' : 'Link kopyalandı!');
+                    toast.success(tr('linkCopied', 'Link copied!'));
                 }
             }
         });
@@ -1131,7 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     elements.startDateInput.value = decoded.s;
                     elements.shiftText.value = decoded.t;
                     
-                    toast.info(window.i18n?.currentLang === 'en' ? 'Shared schedule loaded!' : 'Paylaşılan program yüklendi!');
+                    toast.info(tr('sharedLoaded', 'Shared schedule loaded!'));
                     
                     // URL'i temizle
                     window.history.replaceState({}, document.title, window.location.pathname);
@@ -1300,10 +1299,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             this.setTheme(newTheme);
             
-            const message = window.i18n?.currentLang === 'en' 
-                ? (newTheme === 'dark' ? 'Dark mode enabled' : 'Light mode enabled')
-                : (newTheme === 'dark' ? 'Karanlık mod aktif' : 'Aydınlık mod aktif');
-            toast.info(message);
+            toast.info(tr(newTheme === 'dark' ? 'darkModeOn' : 'lightModeOn', newTheme === 'dark' ? 'Dark mode enabled' : 'Light mode enabled'));
         },
         
         getCurrentTheme() {

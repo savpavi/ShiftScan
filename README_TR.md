@@ -100,7 +100,7 @@ uygulama kural tabanlı planlayıcıya düşer ve çalışmaya devam eder.
 ```bash
 pip install -r requirements-dev.txt
 pytest                        # backend (95 test)
-node --test tests/js/*.test.js  # tarayici testleri (35 test)
+node --test tests/js/*.test.js  # tarayici testleri (41 test)
 ```
 
 Her push ve pull request'te GitHub Actions bu iki paketi ve bir Docker build'i
