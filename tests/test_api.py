@@ -213,4 +213,6 @@ def test_index_links_static_files_with_the_deploy_version():
 
 def test_service_worker_precaches_versioned_urls():
     body = client.get("/sw.js").text
-    assert f"'/static/js/app.js?v={main.STATIC_VERSION}'" in body
+    assert "'/static/js/app.js'," in body
+    assert "`${path}?v=${VERSION}`" in body
+    assert f"const VERSION = '{main.STATIC_VERSION}';" in body
