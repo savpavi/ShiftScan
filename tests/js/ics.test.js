@@ -51,7 +51,7 @@ test('events starting in the same minute get distinct UIDs', () => {
 });
 
 test('uses the same PRODID as the backend', () => {
-    assert.ok(buildICS([EVENT]).includes('PRODID:-//ShiftScan//TR'));
+    assert.ok(buildICS([EVENT]).includes('PRODID:-//ShiftScan//ShiftScan//EN'));
 });
 
 test('emits DTSTART as floating local time', () => {

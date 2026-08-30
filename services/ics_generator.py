@@ -59,7 +59,7 @@ def generate_ics_header() -> str:
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//ShiftScan//TR",
+        "PRODID:-//ShiftScan//ShiftScan//EN",
         "CALSCALE:GREGORIAN",
     ]
     return "".join(line + "\r\n" for line in lines)

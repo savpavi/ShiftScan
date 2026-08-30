@@ -14,7 +14,7 @@
 
     // RFC 5545 icerik satiri siniri: 75 oktet (CRLF haric)
     const MAX_LINE_OCTETS = 75;
-    const PRODID = '-//ShiftScan//TR';
+    const PRODID = '-//ShiftScan//ShiftScan//EN';
     const encoder = new TextEncoder();
 
     function octets(text) {

@@ -245,6 +245,15 @@ def preferred_window(slot_start: datetime, preferred: str) -> Tuple[datetime, da
     yanlis okunur (bkz. slot_matches).
     """
     start_hour, end_hour = PREFERRED_WINDOWS[preferred]
+    tz = slot_start.tzinfo
+    naive_day = slot_start.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    if tz is not None and hasattr(tz, "localize"):
+        # pytz: duvar saatini yerellestir; naive + timedelta DST gununde bir
+        # saat kayardi (18:00 yerine 19:00).
+        return (
+            tz.localize(naive_day + timedelta(hours=start_hour)),
+            tz.localize(naive_day + timedelta(hours=end_hour)),
+        )
     day_start = slot_start.replace(hour=0, minute=0, second=0, microsecond=0)
     return (
         day_start + timedelta(hours=start_hour),
@@ -275,6 +284,40 @@ def _placement_bounds(
 
     window_start, window_end = preferred_window(slot_start, preferred)
     return max(cursor, window_start), min(slot_end, window_end)
+
+
+def _take_from_intervals(
+    intervals: List[Tuple[datetime, datetime]],
+    slot_start: datetime,
+    preferred: str,
+    clamp: bool,
+    hours_wanted: float,
+    min_hours: float,
+    max_hours: float,
+) -> Tuple[datetime, datetime]:
+    """
+    Bir slotun bos araliklarindan ilk uygun parcayi alir, araligi boler ve
+    yerlestirilen (start, end) dondurur; yer yoksa None.
+
+    Slot basina tek bir 'imlec' yerine aralik listesi tutulur: aksam
+    aktivitesi 07:00-24:00 slotunda 18:00'e konunca 07:00-18:00 parcasi
+    sonraki (sabah) aktiviteye acik kalir.
+    """
+    for index, (free_start, free_end) in enumerate(intervals):
+        cursor, limit = _placement_bounds(slot_start, free_end, free_start, preferred, clamp)
+        available = (limit - cursor).total_seconds() / 3600
+        if available < min_hours or available <= 0:
+            continue
+        hours = min(hours_wanted, available, max_hours)
+        placed_end = cursor + timedelta(hours=hours)
+        remainder = []
+        if cursor > free_start:
+            remainder.append((free_start, cursor))
+        if placed_end < free_end:
+            remainder.append((placed_end, free_end))
+        intervals[index:index + 1] = remainder
+        return cursor, placed_end
+    return None
 
 
 def _unplaced_entry(goal: ActivityGoal, amount: float) -> dict:
@@ -331,8 +374,7 @@ def place_activity_plan(
             'day_index': day_index,
             'start': start,
             'end': end,
-            'duration': (end - start).total_seconds() / 3600,
-            'used_until': start
+            'free': [(start, end)],
         })
 
     # Aktiviteleri yerleştir
@@ -355,26 +397,19 @@ def place_activity_plan(
                 break
 
             for slot in day_slots:
-                if remaining_hours <= 0:
-                    break
-
-                activity_start, limit = _placement_bounds(
-                    slot['start'], slot['end'], slot['used_until'], goal.preferred, clamp
-                )
-                available_hours = (limit - activity_start).total_seconds() / 3600
-
-                if available_hours <= 0:
-                    continue
-
-                hours_to_place = min(remaining_hours, available_hours)
-                activity_end = activity_start + timedelta(hours=hours_to_place)
-
-                activity_events.append((activity_start, activity_end, activity_name))
-
-                slot['used_until'] = activity_end
-                remaining_hours -= hours_to_place
-                placed_hours[goal.id] += hours_to_place
-                placed_days[goal.id].add(day)
+                while remaining_hours > 0:
+                    placed = _take_from_intervals(
+                        slot['free'], slot['start'], goal.preferred, clamp,
+                        remaining_hours, 0.0, remaining_hours,
+                    )
+                    if placed is None:
+                        break
+                    activity_start, activity_end = placed
+                    hours_to_place = (activity_end - activity_start).total_seconds() / 3600
+                    activity_events.append((activity_start, activity_end, activity_name))
+                    remaining_hours -= hours_to_place
+                    placed_hours[goal.id] += hours_to_place
+                    placed_days[goal.id].add(day)
 
     # Eksik, modelin istegine degil kullanicinin hedefine gore olculur:
     # model 4 saatlik hedefe 1 saat planlamissa 3 saat eksiktir.
@@ -413,7 +448,7 @@ def place_basic_plan(
     """
     activity_events = []
     unplaced: List[dict] = []
-    used_until = {index: start for index, (_, start, _) in enumerate(free_slots)}
+    free = {index: [(start, end)] for index, (_, start, end) in enumerate(free_slots)}
 
     def slot_matches(slot_index: int, preferred: str) -> bool:
         if preferred == "any":
@@ -460,20 +495,18 @@ def place_basic_plan(
                     if sessions_needed <= 0:
                         break
 
-                    day_index, slot_start, slot_end = free_slots[slot_index]
+                    day_index, slot_start, _ = free_slots[slot_index]
                     if day_index in used_days:
                         continue
 
-                    cursor, limit = _placement_bounds(
-                        slot_start, slot_end, used_until[slot_index], goal.preferred, clamp
+                    placed = _take_from_intervals(
+                        free[slot_index], slot_start, goal.preferred, clamp,
+                        DEFAULT_SESSION_HOURS, DEFAULT_SESSION_HOURS, DEFAULT_SESSION_HOURS,
                     )
-                    available = (limit - cursor).total_seconds() / 3600
-                    if available < DEFAULT_SESSION_HOURS:
+                    if placed is None:
                         continue
 
-                    activity_end = cursor + timedelta(hours=DEFAULT_SESSION_HOURS)
-                    activity_events.append((cursor, activity_end, goal.name))
-                    used_until[slot_index] = activity_end
+                    activity_events.append((placed[0], placed[1], goal.name))
                     used_days.add(day_index)
                     sessions_needed -= 1
 
@@ -483,31 +516,35 @@ def place_basic_plan(
             remaining = goal.amount
             used_days = set()
 
-            def room(slot_index: int, clamp: bool) -> Tuple[datetime, float]:
-                _, slot_start, slot_end = free_slots[slot_index]
-                cursor, limit = _placement_bounds(
-                    slot_start, slot_end, used_until[slot_index], goal.preferred, clamp
-                )
-                return cursor, (limit - cursor).total_seconds() / 3600
+            def room(slot_index: int, clamp: bool) -> float:
+                """Slotta bu tercihle kullanilabilir en buyuk parca (saat)."""
+                _, slot_start, _ = free_slots[slot_index]
+                best = 0.0
+                for free_start, free_end in free[slot_index]:
+                    cursor, limit = _placement_bounds(slot_start, free_end, free_start, goal.preferred, clamp)
+                    best = max(best, (limit - cursor).total_seconds() / 3600)
+                return best
 
             for slot_indices, clamp in passes:
                 while remaining > 0:
                     # Once bu aktivitenin henuz ugramadigi bir gun, sonra
                     # herhangi bir slot: ayni aksama yigilmak yerine haftaya
                     # yayilir.
-                    candidates = [i for i in slot_indices if room(i, clamp)[1] >= MIN_BLOCK_HOURS]
+                    candidates = [i for i in slot_indices if room(i, clamp) >= MIN_BLOCK_HOURS]
                     if not candidates:
                         break
                     fresh = [i for i in candidates if free_slots[i][0] not in used_days]
                     slot_index = (fresh or candidates)[0]
 
-                    cursor, available = room(slot_index, clamp)
-                    hours_to_use = min(remaining, available, MAX_BLOCK_HOURS)
-                    activity_end = cursor + timedelta(hours=hours_to_use)
-                    activity_events.append((cursor, activity_end, goal.name))
-                    used_until[slot_index] = activity_end
+                    placed = _take_from_intervals(
+                        free[slot_index], free_slots[slot_index][1], goal.preferred, clamp,
+                        remaining, MIN_BLOCK_HOURS, MAX_BLOCK_HOURS,
+                    )
+                    if placed is None:
+                        break
+                    activity_events.append((placed[0], placed[1], goal.name))
                     used_days.add(free_slots[slot_index][0])
-                    remaining -= hours_to_use
+                    remaining -= (placed[1] - placed[0]).total_seconds() / 3600
 
             if remaining > 0:
                 unplaced.append(_unplaced_entry(goal, remaining))

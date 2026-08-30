@@ -345,3 +345,62 @@ def test_ai_plan_days_unit_counts_distinct_days_against_the_goal():
     _, unplaced = place_activity_plan([slot(0, 18, 22)], plan, goals)
 
     assert unplaced == [{"id": "a1", "name": "Sport", "amount": 2, "unit": "days"}]
+
+
+# --- kucuk backlog (25.08 notu, "bu turdan cikan backlog") ------------------
+
+import pytest
+from pydantic import ValidationError
+
+from services.ai_planner import preferred_window
+
+
+def test_days_unit_must_be_a_whole_number_of_days_up_to_seven():
+    ActivityGoal(id="a", name="Sport", amount=7, unit="days")
+    with pytest.raises(ValidationError):
+        ActivityGoal(id="a", name="Sport", amount=8, unit="days")
+    with pytest.raises(ValidationError):
+        ActivityGoal(id="a", name="Sport", amount=2.5, unit="days")
+
+
+def test_preferred_window_keeps_wall_clock_on_a_dst_day():
+    """Berlin 29.03.2026: saat 02:00 -> 03:00 atlar; aksam penceresi yine 18:00'de baslar."""
+    berlin = pytz.timezone("Europe/Berlin")
+    slot_start = berlin.localize(datetime(2026, 3, 29, 7, 0))
+
+    window_start, window_end = preferred_window(slot_start, "evening")
+
+    assert (window_start.hour, window_start.minute) == (18, 0)
+    assert window_end.hour == 23
+    assert window_start.utcoffset() == timedelta(hours=2)  # CEST
+
+
+def test_evening_placement_does_not_close_the_morning_of_the_same_slot():
+    """Tek parca 07:00-24:00 izin gunu: aksam aktivitesi 18:00'e gider, sabah
+    aktivitesi hala 07:00'de yer bulur (imlec atlanan bos zamani yemez)."""
+    goals = [
+        ActivityGoal(id="e", name="Evening", amount=2, unit="hours", preferred="evening"),
+        ActivityGoal(id="m", name="Morning", amount=2, unit="hours", preferred="morning"),
+    ]
+    events, unplaced = place_basic_plan([whole_day_slot(0)], goals)
+
+    by_name = {name: (start.hour, end.hour) for start, end, name in events}
+    assert by_name["Evening"] == (18, 20)
+    assert by_name["Morning"] == (7, 9)
+    assert unplaced == []
+
+
+def test_ai_path_also_keeps_skipped_free_time_usable():
+    goals = [
+        ActivityGoal(id="e", name="Evening", amount=1, unit="hours", preferred="evening"),
+        ActivityGoal(id="m", name="Morning", amount=1, unit="hours", preferred="morning"),
+    ]
+    plan = [
+        ActivityPlanItem(day_index=0, activity_id="e", hours=1),
+        ActivityPlanItem(day_index=0, activity_id="m", hours=1),
+    ]
+    events, unplaced = place_activity_plan([whole_day_slot(0)], plan, goals)
+
+    by_name = {name: start.hour for start, _, name in events}
+    assert by_name == {"Evening": 18, "Morning": 7}
+    assert unplaced == []

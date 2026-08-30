@@ -7,7 +7,7 @@ saklamaz. Sinirlar burada tek yerde durur.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # Bir istekte kabul edilen en fazla aktivite
 MAX_ACTIVITIES = 20
@@ -33,6 +33,16 @@ class ActivityGoal(BaseModel):
     amount: float = Field(gt=0, le=168)
     unit: Literal["hours", "days"]
     preferred: Literal["morning", "afternoon", "evening", "any"] = "any"
+
+    @model_validator(mode="after")
+    def days_are_whole_and_fit_a_week(self):
+        """'N gun/hafta' tam sayi ve en fazla 7 olmali; int() kesmesi gizlenmesin."""
+        if self.unit == "days":
+            if self.amount != int(self.amount):
+                raise ValueError("amount must be a whole number of days")
+            if self.amount > 7:
+                raise ValueError("amount must be at most 7 days per week")
+        return self
 
 
 class CalendarLabels(BaseModel):
