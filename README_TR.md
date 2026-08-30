@@ -24,6 +24,7 @@ pip install -r requirements.txt
 3. (Opsiyonel) Gemini API için `.env` dosyası oluşturun:
 ```
 GOOGLE_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-3.6-flash   # istege bagli, varsayilan bu
 ```
 
 ## Çalıştırma
@@ -98,7 +99,7 @@ uygulama kural tabanlı planlayıcıya düşer ve çalışmaya devam eder.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (80 test)
+pytest                        # backend (82 test)
 node --test tests/js/*.test.js  # tarayici testleri (28 test)
 ```
 

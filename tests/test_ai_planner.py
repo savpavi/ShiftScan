@@ -127,7 +127,7 @@ def test_plan_uses_async_client_and_parses_json(gemini_env, free_slots):
         ai_planner.get_gemini_activity_plan(free_slots, goals, {"spor"}, timeout=5)
     )
 
-    assert seen["model"] == ai_planner.GEMINI_MODEL
+    assert seen["model"] == ai_planner.gemini_model_name()
     assert "spor" in seen["contents"]
     assert [(i.day_index, i.activity_id, i.hours) for i in items] == [(0, "spor", 1)]
 
@@ -188,3 +188,13 @@ def test_configure_gemini_builds_client_from_env(gemini_env):
     assert ai_planner.configure_gemini() is True
     assert built == {"api_key": "test-key"}
     assert ai_planner._client == "client-object"
+
+
+def test_model_name_comes_from_env(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-test-model")
+    assert ai_planner.gemini_model_name() == "gemini-test-model"
+
+
+def test_model_name_defaults_to_current_flash(monkeypatch):
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    assert ai_planner.gemini_model_name() == ai_planner.DEFAULT_GEMINI_MODEL
