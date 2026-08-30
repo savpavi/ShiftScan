@@ -671,103 +671,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return parseHTMLTable(ocrText);
         }
 
-        // Metni temizle ve normalleştir
-        let text = ocrText
-            .replace(/\r\n/g, ' ')
-            .replace(/\r/g, ' ')
-            .replace(/\n/g, ' ')
-            .trim();
-        
-        // OCR metin tokenlarını oluştur (boşlukla ayır)
-        const tokens = text.split(/\s+/).filter(t => t.length > 0);
-        console.log('Tokenlar:', tokens);
-        
-        // Her token'ı analiz et ve saat aralığı mı OFF mi bul
-        const results = [];
-        
-        // Saat aralığı regex (09:00-18:00, 09.00-18.00, vb.)
-        const timeRangeRegex = /^(\d{1,2})[:\.]?(\d{2})[-–—](\d{1,2})[:\.]?(\d{2})$/;
-        
-        // YI=Yıllık İzin, HT=Hafta Tatili, RT=Resmi Tatil, Üİ/UI=Ücretsiz İzin
-        const offRegex = /^(OFF|0FF|OEF|İZİN|IZIN|IZİN|İZIN|BOŞ|BOS|B0Ş|TATIL|TATİL|RAPOR|RAP0R|RAPORLU|LEAVE|FREE|HOLIDAY|FREI|CONGÉ|CONGE|YI|Yİ|Yl|YL|YILLIK|HT|RT|Üİ|ÜI|UI|ÜCRETSİZ)$/i;
-        
-        for (let i = 0; i < tokens.length; i++) {
-            const token = tokens[i];
-            
-            // Saat aralığı mı? (09:00-18:00, 09.00-18.00, vb.)
-            const timeMatch = token.match(timeRangeRegex);
-            if (timeMatch) {
-                const h1 = timeMatch[1].padStart(2, '0');
-                const m1 = timeMatch[2];
-                const h2 = timeMatch[3].padStart(2, '0');
-                const m2 = timeMatch[4];
-                results.push(`${h1}:${m1} - ${h2}:${m2}`);
-                continue;
-            }
-            
-            // Tire eksik format: HH:MMHH:MM veya H:MMHH:MM (örn: 11:0020:00, 0:0018:00)
-            const noHyphenMatch = token.match(/^(\d{1,2}):(\d{2})(\d{1,2}):(\d{2})$/);
-            if (noHyphenMatch) {
-                const h1 = noHyphenMatch[1].padStart(2, '0');
-                const m1 = noHyphenMatch[2];
-                const h2 = noHyphenMatch[3].padStart(2, '0');
-                const m2 = noHyphenMatch[4];
-                results.push(`${h1}:${m1} - ${h2}:${m2}`);
-                continue;
-            }
-            
-            // OFF/İZİN mi?
-            if (offRegex.test(token)) {
-                results.push('OFF');
-                continue;
-            }
-            
-            // Birleşik 4+4 haneli sayı mı? (örn: 09001800)
-            const combined8 = token.match(/^(\d{4})(\d{4})$/);
-            if (combined8) {
-                const start = combined8[1];
-                const end = combined8[2];
-                results.push(`${start.slice(0,2)}:${start.slice(2)} - ${end.slice(0,2)}:${end.slice(2)}`);
-                continue;
-            }
-            
-            // 4 haneli tek başına mı ve sonraki de 4 haneli mi? (örn: 0900 1800)
-            const single4 = token.match(/^(\d{4})$/);
-            if (single4 && i + 1 < tokens.length) {
-                const next4 = tokens[i + 1].match(/^(\d{4})$/);
-                if (next4) {
-                    const start = single4[1];
-                    const end = next4[1];
-                    results.push(`${start.slice(0,2)}:${start.slice(2)} - ${end.slice(0,2)}:${end.slice(2)}`);
-                    i++; // Sonraki token'ı da tükettik
-                    continue;
-                }
-            }
-        }
-        
-        console.log('Bulunan vardiyalar (sıralı):', results);
-        
-        if (results.length === 0) {
+        // Duz metin: gun adina capali ayristirma (static/js/ocrparse.js).
+        // OCR bir gunu kacirirsa haftanin kalani artik kaymaz.
+        const parsed = window.ShiftScanOcr ? window.ShiftScanOcr.parseShiftText(ocrText) : null;
+        if (parsed === null) {
             // Hiçbir şey bulunamadı, ham metni döndür
             return `Vardiya formatı algılanamadı. Lütfen manuel düzenleyin:\n\n${ocrText}`;
         }
-        
-        // Günleri oluştur
-        const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-        let result = '';
-        
-        // İlk 7 sonucu günlere ata
-        const count = Math.min(results.length, 7);
-        for (let i = 0; i < count; i++) {
-            result += `${days[i]} ${results[i]}\n`;
-        }
-        
-        // Eğer 7 günden az varsa, uyar
-        if (count < 7) {
-            result += `\n--- ${7 - count} gün eksik, lütfen tamamlayın ---`;
-        }
-        
-        return result.trim();
+        return parsed;
     }
 
     function parseText(text, baseDate) {
