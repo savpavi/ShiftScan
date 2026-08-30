@@ -199,3 +199,20 @@ def test_service_worker_version_falls_back_to_static_content_hash(monkeypatch):
 def test_old_service_worker_path_is_gone():
     """Tarayici /static/sw.js icin 404 gorunce eski kaydi siler."""
     assert client.get("/static/sw.js").status_code == 404
+
+
+def test_index_links_static_files_with_the_deploy_version():
+    """CDN (Cloudflare) static dosyalari saklar; URL surumlenmezse yeni deploy
+    eski app.js ile calisir (30.08.2026'da yasandi)."""
+    html = client.get("/").text
+
+    assert f'/static/js/app.js?v={main.STATIC_VERSION}' in html
+    assert f'/static/css/style.css?v={main.STATIC_VERSION}' in html
+    assert '/static/js/app.js"' not in html
+
+
+def test_service_worker_precaches_versioned_urls():
+    body = client.get("/sw.js").text
+    assert "'/static/js/app.js'," in body
+    assert "`${path}?v=${VERSION}`" in body
+    assert f"const VERSION = '{main.STATIC_VERSION}';" in body
