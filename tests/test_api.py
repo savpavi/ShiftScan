@@ -169,3 +169,33 @@ def test_generate_plan_reports_unplaced_goals():
     assert payload["plan_source"] == "fallback"
     assert payload["unplaced"] and payload["unplaced"][0]["id"] == "a1"
     assert payload["unplaced"][0]["amount"] > 0
+
+
+# --- backlog 5: service worker surumu sunucudan gelir -----------------------
+
+def test_service_worker_is_served_with_a_version_and_no_cache():
+    response = client.get("/sw.js")
+
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert response.headers["cache-control"] == "no-cache"
+    assert "__SW_VERSION__" not in response.text
+    assert f"'{main.STATIC_VERSION}'" in response.text
+    assert len(main.STATIC_VERSION) == 12
+
+
+def test_service_worker_version_prefers_source_commit(monkeypatch):
+    monkeypatch.setenv("SOURCE_COMMIT", "abcdef0123456789")
+    assert main._static_version() == "abcdef012345"
+
+
+def test_service_worker_version_falls_back_to_static_content_hash(monkeypatch):
+    monkeypatch.delenv("SOURCE_COMMIT", raising=False)
+    first = main._static_version()
+    assert first == main._static_version()
+    assert first != "abcdef012345"
+
+
+def test_old_service_worker_path_is_gone():
+    """Tarayici /static/sw.js icin 404 gorunce eski kaydi siler."""
+    assert client.get("/static/sw.js").status_code == 404

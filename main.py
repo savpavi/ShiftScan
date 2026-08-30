@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
@@ -8,6 +9,9 @@ import uvicorn
 import pytz
 from dotenv import load_dotenv
 import traceback
+import hashlib
+import os
+from pathlib import Path
 
 # Environment variables
 load_dotenv()
@@ -42,6 +46,32 @@ configure_gemini()
 # Static files ve templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+def _static_version() -> str:
+    """Service worker cache surumu: deploy commit'i, yoksa static icerik hash'i."""
+    commit = os.getenv("SOURCE_COMMIT")
+    if commit:
+        return commit[:12]
+    digest = hashlib.sha1()
+    for path in sorted(Path("static").rglob("*")):
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+STATIC_VERSION = _static_version()
+SW_TEMPLATE = Path("templates/sw.js").read_text(encoding="utf-8")
+
+
+@app.get("/sw.js", include_in_schema=False)
+async def service_worker():
+    """Surum damgali service worker; tarayici her kontrolde taze halini alir."""
+    return Response(
+        SW_TEMPLATE.replace("__SW_VERSION__", STATIC_VERSION),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 # Pydantic modelleri
 class ShiftEvent(BaseModel):

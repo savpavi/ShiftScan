@@ -561,8 +561,18 @@ Pazar 10:00 - 18:00"
     <!-- Service Worker Registration -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/static/sw.js')
+        window.addEventListener('load', async () => {
+          // Eski surum /static/sw.js'i /static/ kapsamiyla kaydediyordu;
+          // o kayit sayfayi hic kontrol etmiyordu ve dosya artik yok.
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations
+              .filter((r) => r.scope.endsWith('/static/'))
+              .map((r) => r.unregister()));
+          } catch (error) {
+            console.log('SW cleanup failed:', error);
+          }
+          navigator.serviceWorker.register('/sw.js')
             .then((registration) => {
               console.log('SW registered:', registration.scope);
             })
