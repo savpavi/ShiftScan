@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** complete — all tasks implemented on the `feat/user-defined-activities` branch (26 commits, 2026-08-26 → 28) and merged to `main` in PR #2 on 2026-08-30.
+
 **Goal:** Turn ShiftScan from one person's planner into one anyone can use — user-defined activities, browser timezone, no Turkish strings in the backend.
 
 **Architecture:** Configuration travels in each `POST /generate-plan` request; the backend stays stateless. The Gemini exchange moves from names to ids: the prompt lists activity ids, the model answers with `day_index` (0-6) and `activity_id`, and unknown values are dropped during validation. Translations live only in `static/js/i18n.js`.
@@ -34,7 +36,7 @@
 - Consumes: nothing (new leaf module)
 - Produces: `ActivityGoal(id: str, name: str, amount: float, unit: Literal["hours","days"], preferred: Literal["morning","afternoon","evening","any"])`, `CalendarLabels(shift: str, sleep: str)`, `MAX_ACTIVITIES: int`, `DEFAULT_SESSION_HOURS: float`, `PREFERRED_WINDOWS: dict[str, tuple[int, int]]`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_models.py
@@ -117,12 +119,12 @@ def test_module_constants_match_the_spec():
     assert DEFAULT_SESSION_HOURS == 1.0
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/test_models.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'services.models'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```python
 # services/models.py
@@ -168,17 +170,17 @@ class CalendarLabels(BaseModel):
     sleep: str = Field(default="Sleep", min_length=1, max_length=80)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest tests/test_models.py -q`
 Expected: PASS, 11 tests
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q && node --test tests/js/*.test.js`
 Expected: all green (nothing else imports the new module yet)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/models.py tests/test_models.py
@@ -198,7 +200,7 @@ git commit -m "Add shared request models for user-defined activities"
 - Consumes: `CalendarLabels` from Task 1
 - Produces: `generate_final_ics(timeline, activity_events, labels: CalendarLabels) -> str`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_ics_generator.py`:
 
@@ -235,12 +237,12 @@ def generate():
     return generate_final_ics(TIMELINE, ACTIVITIES, CalendarLabels(shift="Vardiya", sleep="Uyku"))
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/test_ics_generator.py -q`
 Expected: FAIL with `TypeError: generate_final_ics() takes 2 positional arguments but 3 were given`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `services/ics_generator.py`, add the import and change the signature and the summary lookup:
 
@@ -283,17 +285,17 @@ and at the call site:
         final_ics = generate_final_ics(timeline, activity_events, plan_data.labels)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest tests/test_ics_generator.py -q`
 Expected: PASS
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q && node --test tests/js/*.test.js`
 Expected: all green. `tests/test_api.py` still posts a body without `labels`, which is why the field has a default.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/ics_generator.py main.py tests/test_ics_generator.py
@@ -313,7 +315,7 @@ git commit -m "Take ICS block labels from the request instead of Turkish literal
 - Consumes: nothing new
 - Produces: `build_timeline(shift_events, timezone: str)`, `find_free_slots(timeline, week_start, timezone: str)`. Both raise `pytz.UnknownTimeZoneError` for an unknown zone; Task 7 turns that into HTTP 400.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_timeline_builder.py`:
 
@@ -346,12 +348,12 @@ def test_unknown_timezone_is_rejected():
 
 Add `import pytest` to the top of the file, and update every existing `build_timeline(...)` and `find_free_slots(...)` call in that file to pass `"Europe/Istanbul"`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/test_timeline_builder.py -q`
 Expected: FAIL with `TypeError: build_timeline() takes 1 positional argument but 2 were given`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `services/timeline_builder.py`, replace both hard-coded lookups. In `build_timeline`:
 
@@ -395,17 +397,17 @@ class PlanRequest(BaseModel):
         free_slots = find_free_slots(timeline, week_start, plan_data.timezone)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest tests/test_timeline_builder.py -q`
 Expected: PASS
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q && node --test tests/js/*.test.js`
 Expected: all green
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/timeline_builder.py main.py tests/test_timeline_builder.py
@@ -425,7 +427,7 @@ git commit -m "Make the timezone a parameter instead of a hard-coded literal"
 - Consumes: `find_free_slots` from Task 3
 - Produces: `find_free_slots(...) -> List[Tuple[int, datetime, datetime]]` where the int is 0-6 (Monday=0). `ActivityPlanItem(day_index: int, activity: str, hours: float)` — `activity` is still a name here; Task 5 turns it into an id.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_timeline_builder.py`:
 
@@ -454,12 +456,12 @@ def days_with_slots(free_slots) -> set:
 the three tests that filter `if s[0] == "Salı"` / `"Çarşamba"` / `"Pazartesi"` filter on
 `1`, `2` and `0`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/test_timeline_builder.py -q`
 Expected: FAIL — `assert all(isinstance(day, int) ...)` fails because day names are strings
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `services/timeline_builder.py`, delete the `DAY_NAMES` constant and its docstring mention, and return the index:
 
@@ -540,17 +542,17 @@ Update `tests/test_ai_planner.py` wherever it constructs `ActivityPlanItem(day=.
 raw dict with `"day"` so it uses `day_index` with an integer, and wherever it passes
 `free_slots` so the first element is an int.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q && node --test tests/js/*.test.js`
 Expected: all green
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/timeline_builder.py services/ai_planner.py tests/
@@ -570,7 +572,7 @@ git commit -m "Return day indices from the planner instead of Turkish day names"
 - Consumes: `ActivityGoal` from Task 1, day indices from Task 4
 - Produces: `create_gemini_activity_prompt(free_slots, goals: List[ActivityGoal]) -> str`; `ActivityPlanItem(day_index: int, activity_id: str, hours: float)`; `parse_activity_plan(raw, known_ids: set[str]) -> List[ActivityPlanItem]`; `apply_activity_plan(free_slots, activity_plan, goals) -> List[Tuple[datetime, datetime, str]]`; `generate_basic_plan(free_slots, goals) -> List[Tuple[datetime, datetime, str]]`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/test_activity_goals.py`:
 
@@ -697,12 +699,12 @@ def test_days_unit_uses_the_default_session_length():
     assert total == 2 * DEFAULT_SESSION_HOURS
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/test_activity_goals.py -q`
 Expected: FAIL — `TypeError` on `parse_activity_plan()` taking one argument, and `ActivityPlanItem` having no `activity_id`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `services/ai_planner.py`, delete `ACTIVITY_MAP` entirely and import the shared models:
 
@@ -932,17 +934,17 @@ Update `tests/test_ai_planner.py` and `tests/test_api.py` to the new shapes: act
 a list of dicts with `id`/`name`/`amount`/`unit`, `parse_activity_plan` takes a second
 argument, and `apply_activity_plan` takes a third.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest -q`
 Expected: PASS
 
-- [ ] **Step 5: Verify no Turkish user-facing strings remain in the planner**
+- [x] **Step 5: Verify no Turkish user-facing strings remain in the planner**
 
 Run: `grep -nE "Vardiya|Uyku|Spor|Kitap|Sosyal|Oyun|İçerik" services/*.py`
 Expected: no matches
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/ai_planner.py main.py tests/
@@ -961,7 +963,7 @@ git commit -m "Replace the fixed activity map with user-defined activity goals"
 - Consumes: `PlanRequest` from Task 5
 - Produces: `POST /generate-plan` returns 400 for an unknown timezone, 422 for a list outside 1-20 or duplicate ids
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_api.py` (reuse whatever client fixture the file already defines):
 
@@ -1020,12 +1022,12 @@ def plan_body(**overrides):
     return body
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/test_api.py -q`
 Expected: FAIL — the unknown timezone raises `UnknownTimeZoneError` and surfaces as 500, and the list limits do not exist
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `main.py`, drop the unused fields and add the constraints:
 
@@ -1085,17 +1087,17 @@ untouched. Do not modify the exception handling — the generic branch deliberat
 full trace via `traceback.print_exc()` and returns a fixed message so nothing leaks to the
 client. `tests/test_api.py` guards this.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest tests/test_api.py -q`
 Expected: PASS
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q && node --test tests/js/*.test.js`
 Expected: all green
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add main.py tests/test_api.py
@@ -1114,7 +1116,7 @@ git commit -m "Validate the timezone and bound the activity list"
 - Consumes: nothing (leaf module, same export shape as `static/js/ics.js`)
 - Produces: `window.ShiftScanActivities` / `module.exports` with `defaultActivities(names)`, `load(storage, names)`, `save(storage, list)`, `addActivity(list, entry)`, `removeActivity(list, id)`, `toPayload(list)`, `STORAGE_KEY`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```javascript
 // tests/js/activities.test.js
@@ -1215,12 +1217,12 @@ test('disabled activities are left out of the payload', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/js/activities.test.js`
 Expected: FAIL with `Cannot find module '../../static/js/activities.js'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```javascript
 // static/js/activities.js
@@ -1332,17 +1334,17 @@ Expected: FAIL with `Cannot find module '../../static/js/activities.js'`
 });
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/js/activities.test.js`
 Expected: PASS, 11 tests
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `.venv/bin/python -m pytest -q && node --test tests/js/*.test.js`
 Expected: all green
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add static/js/activities.js tests/js/activities.test.js
@@ -1363,7 +1365,7 @@ git commit -m "Add a testable activity list module for the browser"
 - Consumes: `window.ShiftScanActivities` from Task 7
 - Produces: a request body matching the contract in Task 6
 
-- [ ] **Step 1: Replace the activity markup**
+- [x] **Step 1: Replace the activity markup**
 
 In `templates/index.html`, delete the five `<div>` blocks holding `content-production`,
 `sports`, `reading`, `social` and `gaming` (they sit between the activities heading and the
@@ -1401,7 +1403,7 @@ Add the script tag before `app.js`, next to the existing `ics.js` line:
     <script src="/static/js/activities.js"></script>
 ```
 
-- [ ] **Step 2: Add the translation keys**
+- [x] **Step 2: Add the translation keys**
 
 In `static/js/i18n.js`, add these keys to all four language blocks (`tr`, `en`, `de`, `fr`).
 Turkish shown; translate the rest in kind:
@@ -1426,7 +1428,7 @@ Turkish shown; translate the rest in kind:
             gaming: 'Oyun / Dinlenme',
 ```
 
-- [ ] **Step 3: Rewrite the activity handling in app.js**
+- [x] **Step 3: Rewrite the activity handling in app.js**
 
 Delete the `elements` entries for the five fixed activities and the code that reads them.
 Replace with list rendering and payload building:
@@ -1528,7 +1530,7 @@ to `/generate-plan` and replace its `body` with:
 
 `shift_text` is no longer sent — the backend dropped it in Task 6.
 
-- [ ] **Step 4: Bump the service worker**
+- [x] **Step 4: Bump the service worker**
 
 In `static/sw.js`:
 
@@ -1545,7 +1547,7 @@ and add the new file to `STATIC_ASSETS`, next to `ics.js`:
 
 Without this bump a cached `app.js` posts the old body shape at the new API.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run: `.venv/bin/python -m pytest -q && node --test tests/js/*.test.js`
 Expected: all green
@@ -1563,7 +1565,7 @@ Check by hand: the default five activities render; adding, renaming and deleting
 a reload keeps the list; generating a plan returns an ICS whose SUMMARY lines use the
 labels of the currently selected language.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add templates/index.html static/js/app.js static/js/i18n.js static/sw.js
@@ -1581,19 +1583,19 @@ git commit -m "Wire the frontend to user-defined activities and browser timezone
 - Consumes: the finished behaviour from Tasks 1-8
 - Produces: nothing code-facing
 
-- [ ] **Step 1: Update both READMEs**
+- [x] **Step 1: Update both READMEs**
 
 Add a section describing user-defined activities, and correct anything that describes the
 old fixed five. State that the activity list lives in the browser's `localStorage` and is
 never sent anywhere except as part of a plan request — this matters because the privacy
 section already promises the app stores nothing server-side.
 
-- [ ] **Step 2: Verify the claims**
+- [x] **Step 2: Verify the claims**
 
 Run: `grep -niE "aktivite|activity" README.md README_TR.md`
 Read each hit and confirm it matches what the app now does.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md README_TR.md

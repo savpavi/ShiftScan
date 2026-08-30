@@ -1,6 +1,6 @@
 # Generalisation: from one person's planner to anyone's
 
-Status: approved, not yet implemented
+Status: implemented — merged to main in PR #2 on 2026-08-30 (deployed the same day)
 Date: 2026-08-26
 
 ## Context
