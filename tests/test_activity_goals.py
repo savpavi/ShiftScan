@@ -306,17 +306,42 @@ def test_generate_basic_plan_keeps_returning_only_events():
 
 
 def test_ai_plan_reports_hours_it_could_not_place():
+    goals = [ActivityGoal(id="a1", name="Reading", amount=4, unit="hours", preferred="any")]
     plan = [ActivityPlanItem(day_index=0, activity_id="a1", hours=4)]
 
-    events, unplaced = place_activity_plan([slot(0, 18, 20)], plan, GOALS)
+    events, unplaced = place_activity_plan([slot(0, 18, 20)], plan, goals)
 
     assert len(events) == 1
-    assert unplaced == [{"id": "a1", "name": GOALS[0].name, "amount": 2, "unit": "hours"}]
+    assert unplaced == [{"id": "a1", "name": "Reading", "amount": 2, "unit": "hours"}]
 
 
 def test_ai_plan_with_everything_placed_reports_nothing():
+    goals = [ActivityGoal(id="a1", name="Reading", amount=1, unit="hours", preferred="any")]
     plan = [ActivityPlanItem(day_index=0, activity_id="a1", hours=1)]
 
-    _, unplaced = place_activity_plan([slot(0, 18, 22)], plan, GOALS)
+    _, unplaced = place_activity_plan([slot(0, 18, 22)], plan, goals)
 
     assert unplaced == []
+
+
+def test_ai_plan_unplaced_is_measured_against_the_goal_not_the_model():
+    """Model 1 saat istedi ve yerlesti; hedef 4 saatti -> 3 saat eksik."""
+    goals = [ActivityGoal(id="a1", name="Reading", amount=4, unit="hours", preferred="any")]
+    plan = [ActivityPlanItem(day_index=0, activity_id="a1", hours=1)]
+
+    events, unplaced = place_activity_plan([slot(0, 18, 22)], plan, goals)
+
+    assert len(events) == 1
+    assert unplaced == [{"id": "a1", "name": "Reading", "amount": 3, "unit": "hours"}]
+
+
+def test_ai_plan_days_unit_counts_distinct_days_against_the_goal():
+    goals = [ActivityGoal(id="a1", name="Sport", amount=3, unit="days", preferred="any")]
+    plan = [
+        ActivityPlanItem(day_index=0, activity_id="a1", hours=1),
+        ActivityPlanItem(day_index=0, activity_id="a1", hours=1),  # ayni gun, ikinci gun sayilmaz
+    ]
+
+    _, unplaced = place_activity_plan([slot(0, 18, 22)], plan, goals)
+
+    assert unplaced == [{"id": "a1", "name": "Sport", "amount": 2, "unit": "days"}]
