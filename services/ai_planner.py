@@ -14,13 +14,18 @@ from pydantic import BaseModel, Field, ValidationError
 
 from services.models import DEFAULT_SESSION_HOURS, PREFERRED_WINDOWS, ActivityGoal
 
-# Gemini API yapılandırması opsiyonel
+# Gemini API yapilandirmasi opsiyonel (google-genai SDK)
 try:
-    import google.generativeai as genai
+    from google import genai
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
     genai = None
+
+GEMINI_MODEL = "gemini-2.0-flash"
+
+# Tembel kurulan tek istemci; configure_gemini() veya ilk cagri olusturur.
+_client = None
 
 
 # Tek bir aktivite yerlestirmesi icin ust sinir (bir gunun tamami)
@@ -84,19 +89,27 @@ def is_gemini_configured() -> bool:
 
 
 def configure_gemini():
-    """Gemini API'yi yapılandırır"""
+    """Gemini istemcisini kurar; anahtar veya paket yoksa False dondurur"""
+    global _client
     if not GEMINI_AVAILABLE:
-        print("WARNING: google-generativeai package not installed")
+        print("WARNING: google-genai package not installed")
         return False
-    
+
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key or api_key == "your_gemini_api_key_here":
         print("WARNING: GOOGLE_API_KEY not found! Set API key in .env file.")
         return False
-    
-    genai.configure(api_key=api_key)
+
+    _client = genai.Client(api_key=api_key)
     print("SUCCESS: Google Gemini API configured")
     return True
+
+
+def _get_client():
+    """Kurulu istemciyi dondurur; yoksa ortamdan kurmayi dener."""
+    if _client is None and is_gemini_configured():
+        configure_gemini()
+    return _client
 
 
 def create_gemini_activity_prompt(
@@ -172,11 +185,15 @@ async def get_gemini_activity_plan(
 
     prompt = create_gemini_activity_prompt(free_slots, goals)
 
+    client = _get_client()
+    if client is None:
+        print("INFO: Gemini istemcisi kurulamadi, kural tabanli plan kullanilacak")
+        return []
+
     try:
         started = time.time()
-        model = genai.GenerativeModel('gemini-2.0-flash')
         response = await asyncio.wait_for(
-            asyncio.to_thread(model.generate_content, prompt),
+            client.aio.models.generate_content(model=GEMINI_MODEL, contents=prompt),
             timeout=timeout,
         )
         print(f"INFO: Gemini yanit verdi ({time.time() - started:.2f}s)")

@@ -79,3 +79,112 @@ def test_apply_activity_plan_places_validated_item(free_slots):
     assert all(name == "Spor" for _, _, name in events)
     total = sum((e - s).total_seconds() / 3600 for s, e, _ in events)
     assert total == pytest.approx(2.0)
+
+
+# --- google-genai client wiring -------------------------------------------
+
+import asyncio
+import types as _types
+
+import services.ai_planner as ai_planner
+
+
+class _FakeResponse:
+    def __init__(self, text):
+        self.text = text
+
+
+def _fake_client(handler):
+    """Builds an object shaped like google.genai.Client for the call we make."""
+
+    async def generate_content(*, model, contents):
+        return await handler(model, contents)
+
+    models = _types.SimpleNamespace(generate_content=generate_content)
+    return _types.SimpleNamespace(aio=_types.SimpleNamespace(models=models))
+
+
+@pytest.fixture
+def gemini_env(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    monkeypatch.setattr(ai_planner, "GEMINI_AVAILABLE", True)
+    monkeypatch.setattr(ai_planner, "_client", None)
+    yield monkeypatch
+
+
+def test_plan_uses_async_client_and_parses_json(gemini_env, free_slots):
+    seen = {}
+
+    async def handler(model, contents):
+        seen["model"] = model
+        seen["contents"] = contents
+        return _FakeResponse('```json\n[{"day_index": 0, "activity_id": "spor", "hours": 1}]\n```')
+
+    gemini_env.setattr(ai_planner, "_client", _fake_client(handler))
+    goals = [ActivityGoal(id="spor", name="Spor", amount=3, unit="hours", preferred="any")]
+
+    items = asyncio.run(
+        ai_planner.get_gemini_activity_plan(free_slots, goals, {"spor"}, timeout=5)
+    )
+
+    assert seen["model"] == ai_planner.GEMINI_MODEL
+    assert "spor" in seen["contents"]
+    assert [(i.day_index, i.activity_id, i.hours) for i in items] == [(0, "spor", 1)]
+
+
+def test_plan_returns_empty_on_timeout(gemini_env, free_slots):
+    async def handler(model, contents):
+        await asyncio.sleep(1)
+        return _FakeResponse("[]")
+
+    gemini_env.setattr(ai_planner, "_client", _fake_client(handler))
+
+    items = asyncio.run(
+        ai_planner.get_gemini_activity_plan(free_slots, [], set(), timeout=0.01)
+    )
+    assert items == []
+
+
+def test_plan_returns_empty_when_client_raises(gemini_env, free_slots):
+    async def handler(model, contents):
+        raise RuntimeError("network down")
+
+    gemini_env.setattr(ai_planner, "_client", _fake_client(handler))
+
+    items = asyncio.run(
+        ai_planner.get_gemini_activity_plan(free_slots, [], set(), timeout=5)
+    )
+    assert items == []
+
+
+def test_plan_skips_client_without_api_key(monkeypatch, free_slots):
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    called = []
+
+    async def handler(model, contents):
+        called.append(model)
+        return _FakeResponse("[]")
+
+    monkeypatch.setattr(ai_planner, "_client", _fake_client(handler))
+
+    items = asyncio.run(
+        ai_planner.get_gemini_activity_plan(free_slots, [], set(), timeout=5)
+    )
+    assert items == []
+    assert called == []
+
+
+def test_configure_gemini_builds_client_from_env(gemini_env):
+    built = {}
+
+    class FakeGenai:
+        @staticmethod
+        def Client(api_key):
+            built["api_key"] = api_key
+            return "client-object"
+
+    gemini_env.setattr(ai_planner, "genai", FakeGenai)
+
+    assert ai_planner.configure_gemini() is True
+    assert built == {"api_key": "test-key"}
+    assert ai_planner._client == "client-object"
