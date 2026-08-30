@@ -318,106 +318,29 @@ Pazar 10:00 - 18:00"
             Boş zamanlarınıza yerleştirilecek aktiviteleri seçin
           </p>
 
-          <div class="activity-grid">
-            <!-- İçerik Üretimi -->
-            <div class="activity-card">
-              <label class="checkbox-group">
-                <input
-                  type="checkbox"
-                  id="content-production"
-                  class="checkbox"
-                />
-                <span class="activity-label" data-i18n="contentProduction">📝 İçerik Üretimi</span>
-              </label>
-              <input
-                type="number"
-                id="content-hours"
-                data-i18n-placeholder="weeklyHours"
-                placeholder="Haftalık saat"
-                min="1"
-                max="40"
-                class="input"
-                style="margin-top: 12px"
-                disabled
-              />
-            </div>
+          <ul id="activity-list" class="activity-list"></ul>
+          <button type="button" id="add-activity" class="btn btn-secondary" data-i18n="addActivity">
+            + Aktivite Ekle
+          </button>
 
-            <!-- Spor -->
-            <div class="activity-card">
-              <label class="checkbox-group">
-                <input type="checkbox" id="sports" class="checkbox" />
-                <span class="activity-label" data-i18n="sports">🏃 Spor</span>
-              </label>
-              <input
-                type="number"
-                id="sports-days"
-                data-i18n-placeholder="weeklyDays"
-                placeholder="Haftalık gün"
-                min="1"
-                max="7"
-                class="input"
-                style="margin-top: 12px"
-                disabled
-              />
-            </div>
-
-            <!-- Kitap Okuma -->
-            <div class="activity-card">
-              <label class="checkbox-group">
-                <input type="checkbox" id="reading" class="checkbox" />
-                <span class="activity-label" data-i18n="reading">📚 Kitap Okuma</span>
-              </label>
-              <input
-                type="number"
-                id="reading-hours"
-                data-i18n-placeholder="weeklyHours"
-                placeholder="Haftalık saat"
-                min="1"
-                max="40"
-                class="input"
-                style="margin-top: 12px"
-                disabled
-              />
-            </div>
-
-            <!-- Sosyal -->
-            <div class="activity-card">
-              <label class="checkbox-group">
-                <input type="checkbox" id="social" class="checkbox" />
-                <span class="activity-label" data-i18n="social">👥 Sosyal Aktivite</span>
-              </label>
-              <input
-                type="number"
-                id="social-hours"
-                data-i18n-placeholder="weeklyHours"
-                placeholder="Haftalık saat"
-                min="1"
-                max="40"
-                class="input"
-                style="margin-top: 12px"
-                disabled
-              />
-            </div>
-
-            <!-- Oyun/Dinlenme -->
-            <div class="activity-card">
-              <label class="checkbox-group">
-                <input type="checkbox" id="gaming" class="checkbox" />
-                <span class="activity-label" data-i18n="gaming">🎮 Oyun / Dinlenme</span>
-              </label>
-              <input
-                type="number"
-                id="gaming-hours"
-                data-i18n-placeholder="weeklyHours"
-                placeholder="Haftalık saat"
-                min="1"
-                max="40"
-                class="input"
-                style="margin-top: 12px"
-                disabled
-              />
-            </div>
-          </div>
+          <template id="activity-row-template">
+            <li class="activity-row">
+              <input type="checkbox" class="checkbox activity-enabled" checked data-i18n-aria-label="ariaActivityEnabled" aria-label="Aktiviteyi plana dahil et" />
+              <input type="text" class="input activity-name" maxlength="80" data-i18n-aria-label="ariaActivityName" aria-label="Aktivite adı" />
+              <input type="number" class="input activity-amount" min="1" max="168" step="1" data-i18n-aria-label="ariaActivityAmount" aria-label="Haftalık miktar" />
+              <select class="select activity-unit" data-i18n-aria-label="ariaActivityUnit" aria-label="Birim">
+                <option value="hours" data-i18n="unitHours">saat</option>
+                <option value="days" data-i18n="unitDays">gün</option>
+              </select>
+              <select class="select activity-preferred" data-i18n-aria-label="ariaActivityPreferred" aria-label="Tercih edilen zaman">
+                <option value="any" data-i18n="preferAny">Fark etmez</option>
+                <option value="morning" data-i18n="preferMorning">Sabah</option>
+                <option value="afternoon" data-i18n="preferAfternoon">Öğlen</option>
+                <option value="evening" data-i18n="preferEvening">Akşam</option>
+              </select>
+              <button type="button" class="btn-icon activity-remove" data-i18n-aria-label="removeActivity" aria-label="Sil">✕</button>
+            </li>
+          </template>
         </section>
 
         <!-- Butonlar -->
@@ -631,6 +554,7 @@ Pazar 10:00 - 18:00"
     <script src="/static/js/templates.js"></script>
     <script src="/static/js/export.js"></script>
     <script src="/static/js/ics.js"></script>
+    <script src="/static/js/activities.js"></script>
     <script src="/static/js/app.js"></script>
 
     <!-- Service Worker Registration -->

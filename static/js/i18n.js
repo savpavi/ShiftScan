@@ -50,11 +50,33 @@ Pazar 10:00 - 18:00`,
             contentProduction: 'İçerik Üretimi',
             sports: 'Spor',
             reading: 'Kitap Okuma',
-            social: 'Sosyal Aktivite',
+            social: 'Sosyal Yaşam',
             gaming: 'Oyun / Dinlenme',
             weeklyHours: 'Haftalık saat',
             weeklyDays: 'Haftalık gün',
-            
+            addActivity: '+ Aktivite Ekle',
+            newActivityName: 'Yeni aktivite',
+            unitHours: 'saat',
+            unitDays: 'gün',
+            preferAny: 'Fark etmez',
+            preferMorning: 'Sabah',
+            preferAfternoon: 'Öğlen',
+            preferEvening: 'Akşam',
+            removeActivity: 'Sil',
+            ariaActivityEnabled: 'Aktiviteyi plana dahil et',
+            ariaActivityName: 'Aktivite adı',
+            ariaActivityAmount: 'Haftalık miktar',
+            ariaActivityUnit: 'Birim',
+            ariaActivityPreferred: 'Tercih edilen zaman',
+            activityLimitReached: 'En fazla 20 aktivite ekleyebilirsiniz.',
+
+            // ICS etiketleri
+            icsShift: 'Vardiya',
+            icsSleep: 'Uyku',
+
+            // Varsayılan aktivite adları
+            'content-production': 'İçerik Üretimi',
+
             // Butonlar
             preview: 'Önizle',
             createAIPlan: 'AI ile Plan Oluştur',
@@ -151,11 +173,33 @@ Sun 10:00 - 18:00`,
             contentProduction: 'Content Creation',
             sports: 'Sports',
             reading: 'Reading',
-            social: 'Social Activity',
+            social: 'Social Life',
             gaming: 'Gaming / Rest',
             weeklyHours: 'Weekly hours',
             weeklyDays: 'Weekly days',
-            
+            addActivity: '+ Add Activity',
+            newActivityName: 'New activity',
+            unitHours: 'hours',
+            unitDays: 'days',
+            preferAny: 'Any time',
+            preferMorning: 'Morning',
+            preferAfternoon: 'Afternoon',
+            preferEvening: 'Evening',
+            removeActivity: 'Remove',
+            ariaActivityEnabled: 'Include this activity in the plan',
+            ariaActivityName: 'Activity name',
+            ariaActivityAmount: 'Weekly amount',
+            ariaActivityUnit: 'Unit',
+            ariaActivityPreferred: 'Preferred time of day',
+            activityLimitReached: 'You can add up to 20 activities.',
+
+            // ICS labels
+            icsShift: 'Shift',
+            icsSleep: 'Sleep',
+
+            // Default activity names
+            'content-production': 'Content Creation',
+
             // Buttons
             preview: 'Preview',
             createAIPlan: 'Create Plan with AI',
@@ -253,11 +297,33 @@ So 10:00 - 18:00`,
             contentProduction: 'Content-Erstellung',
             sports: 'Sport',
             reading: 'Lesen',
-            social: 'Soziale Aktivität',
+            social: 'Soziales Leben',
             gaming: 'Spielen / Ausruhen',
             weeklyHours: 'Wochenstunden',
             weeklyDays: 'Wochentage',
-            
+            addActivity: '+ Aktivität hinzufügen',
+            newActivityName: 'Neue Aktivität',
+            unitHours: 'Stunden',
+            unitDays: 'Tage',
+            preferAny: 'Egal',
+            preferMorning: 'Morgens',
+            preferAfternoon: 'Nachmittags',
+            preferEvening: 'Abends',
+            removeActivity: 'Entfernen',
+            ariaActivityEnabled: 'Diese Aktivität in den Plan aufnehmen',
+            ariaActivityName: 'Name der Aktivität',
+            ariaActivityAmount: 'Wöchentliche Menge',
+            ariaActivityUnit: 'Einheit',
+            ariaActivityPreferred: 'Bevorzugte Tageszeit',
+            activityLimitReached: 'Sie können maximal 20 Aktivitäten hinzufügen.',
+
+            // ICS-Beschriftungen
+            icsShift: 'Schicht',
+            icsSleep: 'Schlaf',
+
+            // Standard-Aktivitätsnamen
+            'content-production': 'Content-Erstellung',
+
             // Buttons
             preview: 'Vorschau',
             createAIPlan: 'Plan mit KI erstellen',
@@ -349,11 +415,33 @@ Dim 10:00 - 18:00`,
             contentProduction: 'Création de contenu',
             sports: 'Sport',
             reading: 'Lecture',
-            social: 'Activité sociale',
+            social: 'Vie sociale',
             gaming: 'Jeux / Repos',
             weeklyHours: 'Heures par semaine',
             weeklyDays: 'Jours par semaine',
-            
+            addActivity: '+ Ajouter une activité',
+            newActivityName: 'Nouvelle activité',
+            unitHours: 'heures',
+            unitDays: 'jours',
+            preferAny: 'Peu importe',
+            preferMorning: 'Matin',
+            preferAfternoon: 'Après-midi',
+            preferEvening: 'Soir',
+            removeActivity: 'Supprimer',
+            ariaActivityEnabled: 'Inclure cette activité dans le plan',
+            ariaActivityName: "Nom de l'activité",
+            ariaActivityAmount: 'Quantité hebdomadaire',
+            ariaActivityUnit: 'Unité',
+            ariaActivityPreferred: 'Moment de la journée préféré',
+            activityLimitReached: "Vous pouvez ajouter jusqu'à 20 activités.",
+
+            // Libellés ICS
+            icsShift: 'Équipe',
+            icsSleep: 'Sommeil',
+
+            // Noms d'activités par défaut
+            'content-production': 'Création de contenu',
+
             // Boutons
             preview: 'Aperçu',
             createAIPlan: 'Créer un plan avec IA',
@@ -460,6 +548,12 @@ Dim 10:00 - 18:00`,
         document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
             const key = el.getAttribute('data-i18n-placeholder');
             el.placeholder = this.t(key);
+        });
+
+        // data-i18n-aria-label için
+        document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+            const key = el.getAttribute('data-i18n-aria-label');
+            el.setAttribute('aria-label', this.t(key));
         });
 
         // Title güncelle

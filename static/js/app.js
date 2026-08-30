@@ -80,35 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dijitalAcentelik: document.getElementById('dijitalAcentelik')
     };
 
-    // Aktivite Elemanları
-    const activities = {
-        'content-production': {
-            checkbox: document.getElementById('content-production'),
-            input: document.getElementById('content-hours'),
-            type: 'hours'
-        },
-        'sports': {
-            checkbox: document.getElementById('sports'),
-            input: document.getElementById('sports-days'),
-            type: 'days'
-        },
-        'reading': {
-            checkbox: document.getElementById('reading'),
-            input: document.getElementById('reading-hours'),
-            type: 'hours'
-        },
-        'social': {
-            checkbox: document.getElementById('social'),
-            input: document.getElementById('social-hours'),
-            type: 'hours'
-        },
-        'gaming': {
-            checkbox: document.getElementById('gaming'),
-            input: document.getElementById('gaming-hours'),
-            type: 'hours'
-        }
-    };
-
     // ============================================
     // TOAST BİLDİRİM SİSTEMİ
     // ============================================
@@ -286,26 +257,117 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================
-    // AKTİVİTE CHECKBOX'LARI
+    // AKTİVİTE LİSTESİ
     // ============================================
-    
-    Object.keys(activities).forEach(key => {
-        const activity = activities[key];
-        if (activity.checkbox && activity.input) {
-            activity.checkbox.addEventListener('change', () => {
-                activity.input.disabled = !activity.checkbox.checked;
-                if (!activity.checkbox.checked) {
-                    activity.input.value = '';
-                }
-                
-                // Kart vurgulama
-                const card = activity.checkbox.closest('.activity-card');
-                if (card) {
-                    card.classList.toggle('selected', activity.checkbox.checked);
-                }
+
+    // Backend'deki services/models.py::MAX_ACTIVITIES ile aynı sınır;
+    // sunucu zaten reddediyor ama kullanıcı 21. satırı eklerken
+    // sebepsiz bir 422 ile karşılaşmasın diye burada da uygulanır.
+    const MAX_ACTIVITIES = 20;
+
+    const activityListEl = document.getElementById('activity-list');
+    const activityTemplate = document.getElementById('activity-row-template');
+    const addActivityBtn = document.getElementById('add-activity');
+
+    // Aktivite listesi opsiyonel bir eklenti: modül yüklenmezse veya
+    // şablon/liste elemanları eksikse tarama → ICS akışı etkilenmemeli.
+    // Burada atılacak bir hata DOMContentLoaded'i keser ve altındaki
+    // cropper/OCR/convert bağlamalarını hiç kurulmadan bırakır.
+    const activitiesAvailable = Boolean(
+        window.ShiftScanActivities && activityListEl && activityTemplate && addActivityBtn
+    );
+    let activityList = [];
+
+    function activityNames() {
+        const keys = ['content-production', 'sports', 'reading', 'social', 'gaming'];
+        const names = {};
+        keys.forEach((key) => { names[key] = window.i18n ? window.i18n.t(key) : key; });
+        return names;
+    }
+
+    function persistActivities() {
+        ShiftScanActivities.save(localStorage, activityList);
+    }
+
+    function renderActivities() {
+        activityListEl.innerHTML = '';
+
+        activityList.forEach((activity) => {
+            const row = activityTemplate.content.cloneNode(true);
+            const li = row.querySelector('.activity-row');
+
+            const enabled = li.querySelector('.activity-enabled');
+            const name = li.querySelector('.activity-name');
+            const amount = li.querySelector('.activity-amount');
+            const unit = li.querySelector('.activity-unit');
+            const preferred = li.querySelector('.activity-preferred');
+
+            enabled.checked = activity.enabled !== false;
+            name.value = activity.name;
+            amount.value = activity.amount;
+            unit.value = activity.unit;
+            preferred.value = activity.preferred || 'any';
+
+            enabled.addEventListener('change', () => {
+                activity.enabled = enabled.checked;
+                persistActivities();
             });
+            name.addEventListener('input', () => { activity.name = name.value; persistActivities(); });
+            amount.addEventListener('input', () => {
+                // Alan silinip yeniden yazılırken Number('') === 0 kaydedilir,
+                // reload'dan sonra da kalır ve sunucu 422 döner. Geçersiz
+                // değeri kaydetmiyoruz ama satırı da kilitlemiyoruz.
+                const parsed = ShiftScanActivities.parseAmount(amount.value);
+                if (parsed === null) return;
+                activity.amount = parsed;
+                persistActivities();
+            });
+            unit.addEventListener('change', () => { activity.unit = unit.value; persistActivities(); });
+            preferred.addEventListener('change', () => {
+                activity.preferred = preferred.value;
+                persistActivities();
+            });
+            li.querySelector('.activity-remove').addEventListener('click', () => {
+                activityList = ShiftScanActivities.removeActivity(activityList, activity.id);
+                persistActivities();
+                renderActivities();
+            });
+
+            activityListEl.appendChild(row);
+        });
+
+        // Yeni klonlanan satırlar (aria-label, seçenek metinleri) mevcut dile
+        // hemen senkronlansın; bir sonraki dil değişimini beklemesin.
+        if (window.i18n) window.i18n.updateUI();
+
+        if (addActivityBtn) {
+            addActivityBtn.disabled = activityList.length >= MAX_ACTIVITIES;
         }
-    });
+    }
+
+    if (activitiesAvailable) {
+        activityList = ShiftScanActivities.load(localStorage, activityNames());
+
+        addActivityBtn.addEventListener('click', () => {
+            if (activityList.length >= MAX_ACTIVITIES) {
+                showAlert(window.i18n ? window.i18n.t('activityLimitReached') : 'You can add up to 20 activities.', 'warning');
+                return;
+            }
+            activityList = ShiftScanActivities.addActivity(activityList, {
+                // 'addActivity' butonun kendi etiketi ve başında '+' taşıyor;
+                // ICS'e 'SUMMARY:+ Add Activity' düşmesin diye ayrı anahtar.
+                name: window.i18n ? window.i18n.t('newActivityName') : 'New activity',
+                amount: 1,
+                unit: 'hours'
+            });
+            persistActivities();
+            renderActivities();
+        });
+
+        renderActivities();
+    } else {
+        console.warn('ShiftScan: aktivite listesi yüklenemedi, gelişmiş mod devre dışı.');
+    }
 
     // ============================================
     // GÖRSEL YÜKLEME & CROPPER
@@ -1170,22 +1232,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Aktivite verilerini topla
-                const activityData = {};
-                let hasValidActivity = false;
+                // Aktivite listesini payload'a çevir (kapatılmış/silinmiş satırlar hariç)
+                const activityPayload = activitiesAvailable
+                    ? ShiftScanActivities.toPayload(activityList)
+                    : [];
 
-                Object.keys(activities).forEach(key => {
-                    const activity = activities[key];
-                    if (activity.checkbox.checked && activity.input.value) {
-                        activityData[key] = {
-                            value: parseInt(activity.input.value),
-                            type: activity.type
-                        };
-                        hasValidActivity = true;
-                    }
-                });
-
-                if (!hasValidActivity) {
+                if (activityPayload.length === 0) {
                     showAlert(window.i18n?.t('selectActivity') || 'Lütfen en az bir aktivite seçin ve süre/gün belirtin!', 'warning');
                     return;
                 }
@@ -1198,14 +1250,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Backend'e gönderilecek veri
                 const planData = {
                     start_date: startDateVal,
-                    shift_text: shiftTextVal,
-                    shift_events: shiftEvents.map(event => ({
-                        title: event.title,
-                        start: event.start.toISOString(),
-                        end: event.end.toISOString(),
-                        original_line: event.originalLine
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    shift_events: shiftEvents.map((ev) => ({
+                        start: ev.start.toISOString(),
+                        end: ev.end.toISOString()
                     })),
-                    activities: activityData
+                    activities: activityPayload,
+                    labels: {
+                        shift: window.i18n ? window.i18n.t('icsShift') : 'Shift',
+                        sleep: window.i18n ? window.i18n.t('icsSleep') : 'Sleep'
+                    }
                 };
 
                 console.log('Plan verileri:', planData);
@@ -1221,7 +1275,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP hatası: ${response.status}`);
+                    // Ham durum kodu tek başına çıkmaz yol: 422 hangi alanın
+                    // reddedildiğini, 400 hangi saat diliminin tanınmadığını
+                    // yalnızca gövdedeki `detail` söylüyor (bkz. /ocr).
+                    // FastAPI doğrulama hatalarında `detail` bir liste gelir;
+                    // düz string'e zorlanırsa "[object Object]" görünür.
+                    const errorData = await response.json().catch(() => ({}));
+                    const detail = errorData.detail;
+                    const message = Array.isArray(detail)
+                        ? detail.map((d) => d && d.msg).filter(Boolean).join('; ')
+                        : detail;
+                    throw new Error(message || `HTTP ${response.status}`);
                 }
 
                 const result = await response.json();

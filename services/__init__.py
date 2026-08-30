@@ -3,7 +3,7 @@ ShiftScan - Services Package
 Backend servis modulleri
 """
 
-from .timeline_builder import build_timeline, find_free_slots, DAY_NAMES
+from .timeline_builder import build_timeline, find_free_slots
 
 from .ics_generator import (
     generate_ics_header,
@@ -20,14 +20,12 @@ from .ai_planner import (
     get_gemini_activity_plan,
     apply_activity_plan,
     generate_basic_plan,
-    ACTIVITY_MAP,
 )
 
 __all__ = [
     # timeline_builder
     'build_timeline',
     'find_free_slots',
-    'DAY_NAMES',
 
     # ics_generator
     'generate_ics_header',
@@ -43,5 +41,4 @@ __all__ = [
     'get_gemini_activity_plan',
     'apply_activity_plan',
     'generate_basic_plan',
-    'ACTIVITY_MAP',
 ]

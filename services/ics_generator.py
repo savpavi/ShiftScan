@@ -5,6 +5,7 @@ RFC 5545 uyumlu ICS takvim dosyasi olusturma islemleri
 
 from typing import List, Tuple
 from datetime import datetime, timezone
+from services.models import CalendarLabels
 
 # RFC 5545 icerik satiri siniri: 75 oktet (CRLF haric)
 MAX_LINE_OCTETS = 75
@@ -105,14 +106,16 @@ def generate_ics_event(
 
 def generate_final_ics(
     timeline: List[Tuple[datetime, datetime, str]],
-    activity_events: List[Tuple[datetime, datetime, str]]
+    activity_events: List[Tuple[datetime, datetime, str]],
+    labels: CalendarLabels
 ) -> str:
     """
-    Timeline ve aktivitelerden son ICS'i olustur (Floating Time - Europe/Istanbul)
+    Timeline ve aktivitelerden son ICS'i olustur (floating local time)
 
     Args:
         timeline: Vardiya ve uyku bloklari
         activity_events: Aktivite etkinlikleri
+        labels: Vardiya ve uyku blok etiketleri
 
     Returns:
         Tam ICS dosya icerigi
@@ -122,7 +125,7 @@ def generate_final_ics(
 
     # Timeline bloklarini ekle (vardiya + uyku)
     for index, (start, end, block_type) in enumerate(timeline):
-        summary = "Vardiya" if block_type == "shift" else "Uyku"
+        summary = labels.shift if block_type == "shift" else labels.sleep
         uid = f"{block_type}-{start.strftime('%Y%m%d%H%M')}-{index}@shiftscan"
         ics += generate_ics_event(uid, start, end, summary, dtstamp=stamp)
 

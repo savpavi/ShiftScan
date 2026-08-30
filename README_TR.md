@@ -57,6 +57,23 @@ Mon, Tue, Wed, Thu, Fri, Sat, Sun (EN)
 ### İzin/Tatil
 OFF, İZİN, BOŞ, TATİL, RAPOR
 
+## Aktiviteler
+
+Aktiviteler **Gelişmiş Mod** kaldırması arkasında opsiyonel bir özelliktir. Etkinleştirildiğinde,
+ShiftScan boş zamanınızı tanımladığınız aktivitelerin etrafına planlayabilir. Varsayılan
+aktiviteler sağlanır (İçerik Üretimi, Spor, Kitap Okuma, Sosyal Yaşam, Oyun / Dinlenme)
+ancak bunları yeniden adlandırabilir, silebilir veya yeni olanlar ekleyebilirsiniz.
+
+Her aktivitenin:
+- **Adı**: onu nasıl çağırdığınız
+- **Miktarı**: haftada ne kadar zaman istediğiniz (bir sayı)
+- **Birimi**: bunun saat mi yoksa gün mü olduğu
+- **Tercih edilen zaman**: bunu yapmak istediğiniz zaman (sabah, öğleden sonra, akşam veya herhangi bir zaman)
+
+Aktivite listeniz tarayıcınızın `localStorage` alanında `shiftscan-activities-v1` adıyla
+saklanır ve asla cihazınızdan çıkmaz; sadece plan isteğinin parçası olarak backend'e
+gönderilir. Aynı anda 1 ile 20 arasında aktivite etkinleştirebilirsiniz.
+
 ## Gizlilik
 
 **Taradığınız görseller üçüncü tarafa gönderilir.** OCR, bu projeye ait olmayan,
@@ -81,8 +98,8 @@ uygulama kural tabanlı planlayıcıya düşer ve çalışmaya devam eder.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (31 test)
-node --test tests/js/*.test.js  # tarayici ICS uretimi (9 test)
+pytest                        # backend (75 test)
+node --test tests/js/*.test.js  # tarayici testleri (28 test)
 ```
 
 Her push ve pull request'te GitHub Actions bu iki paketi ve bir Docker build'i
