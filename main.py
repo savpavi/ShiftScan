@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
@@ -8,6 +9,9 @@ import uvicorn
 import pytz
 from dotenv import load_dotenv
 import traceback
+import hashlib
+import os
+from pathlib import Path
 
 # Environment variables
 load_dotenv()
@@ -18,9 +22,9 @@ from services.timeline_builder import build_timeline, find_free_slots
 from services.ics_generator import generate_final_ics
 from services.models import MAX_ACTIVITIES, ActivityGoal, CalendarLabels
 from services.ai_planner import (
-    apply_activity_plan,
+    place_activity_plan,
     configure_gemini,
-    generate_basic_plan,
+    place_basic_plan,
     get_gemini_activity_plan,
     is_gemini_configured,
 )
@@ -42,6 +46,32 @@ configure_gemini()
 # Static files ve templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+def _static_version() -> str:
+    """Service worker cache surumu: deploy commit'i, yoksa static icerik hash'i."""
+    commit = os.getenv("SOURCE_COMMIT")
+    if commit:
+        return commit[:12]
+    digest = hashlib.sha1()
+    for path in sorted(Path("static").rglob("*")):
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+STATIC_VERSION = _static_version()
+SW_TEMPLATE = Path("templates/sw.js").read_text(encoding="utf-8")
+
+
+@app.get("/sw.js", include_in_schema=False)
+async def service_worker():
+    """Surum damgali service worker; tarayici her kontrolde taze halini alir."""
+    return Response(
+        SW_TEMPLATE.replace("__SW_VERSION__", STATIC_VERSION),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 # Pydantic modelleri
 class ShiftEvent(BaseModel):
@@ -120,15 +150,18 @@ async def generate_plan(plan_data: PlanRequest):
         )
 
         if activity_plan:
-            activity_events = apply_activity_plan(
+            activity_events, unplaced = place_activity_plan(
                 free_slots, activity_plan, plan_data.activities
             )
             plan_source = "ai"
         else:
-            activity_events = generate_basic_plan(free_slots, plan_data.activities)
+            activity_events, unplaced = place_basic_plan(free_slots, plan_data.activities)
             plan_source = "fallback"
 
-        print(f"INFO: {len(activity_events)} aktivite yerlestirildi ({plan_source})")
+        print(
+            f"INFO: {len(activity_events)} aktivite yerlestirildi ({plan_source}), "
+            f"{len(unplaced)} hedef eksik kaldi"
+        )
 
         # 4. ICS
         final_ics = generate_final_ics(timeline, activity_events, plan_data.labels)
@@ -137,6 +170,7 @@ async def generate_plan(plan_data: PlanRequest):
             "status": "success",
             "message": "Plan generated",
             "plan_source": plan_source,
+            "unplaced": unplaced,
             "ics_content": final_ics,
             "download_ready": True,
         }

@@ -101,6 +101,9 @@ Pazar 10:00 - 18:00`,
             scanError: 'Tarama sırasında bir hata oluştu.',
             convertError: 'Dönüştürme sırasında bir hata oluştu. Lütfen formatı kontrol edin.',
             planCreated: 'Akıllı haftalık plan başarıyla oluşturuldu!',
+            planUnplaced: 'Boş zaman yetmedi, yerleşemeyen: {list}',
+            unitHoursShort: 'sa',
+            unitDaysShort: 'gün',
             planDownloadError: 'Plan oluşturuldu ancak indirilemedi.',
             
             // Footer
@@ -224,6 +227,9 @@ Sun 10:00 - 18:00`,
             scanError: 'An error occurred during scanning.',
             convertError: 'An error occurred during conversion. Please check the format.',
             planCreated: 'Smart weekly plan created successfully!',
+            planUnplaced: 'Not enough free time; could not place: {list}',
+            unitHoursShort: 'h',
+            unitDaysShort: 'd',
             planDownloadError: 'Plan created but could not be downloaded.',
             
             // Footer
@@ -348,6 +354,9 @@ So 10:00 - 18:00`,
             scanError: 'Beim Scannen ist ein Fehler aufgetreten.',
             convertError: 'Bei der Konvertierung ist ein Fehler aufgetreten. Bitte überprüfen Sie das Format.',
             planCreated: 'Intelligenter Wochenplan erfolgreich erstellt!',
+            planUnplaced: 'Nicht genug freie Zeit; nicht eingeplant: {list}',
+            unitHoursShort: 'Std',
+            unitDaysShort: 'Tg',
             planDownloadError: 'Plan erstellt, konnte aber nicht heruntergeladen werden.',
             
             // Footer
@@ -466,6 +475,9 @@ Dim 10:00 - 18:00`,
             scanError: 'Une erreur est survenue lors de la numérisation.',
             convertError: 'Une erreur est survenue lors de la conversion. Veuillez vérifier le format.',
             planCreated: 'Plan hebdomadaire intelligent créé avec succès!',
+            planUnplaced: 'Pas assez de temps libre ; non placé : {list}',
+            unitHoursShort: 'h',
+            unitDaysShort: 'j',
             planDownloadError: 'Plan créé mais impossible à télécharger.',
             
             // Pied de page

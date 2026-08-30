@@ -38,6 +38,12 @@ _client = None
 # Tek bir aktivite yerlestirmesi icin ust sinir (bir gunun tamami)
 MAX_ACTIVITY_HOURS = 24
 
+# Kural tabanli planlayicinin tek seferde yazdigi en uzun blok; hedef bundan
+# uzunsa parcalanir. Bundan kisa bos kirintilara (ornegin iki vardiya arasi
+# 15 dakika) hic aktivite yazilmaz.
+MAX_BLOCK_HOURS = 2.0
+MIN_BLOCK_HOURS = 0.5
+
 
 class ActivityPlanItem(BaseModel):
     """Modelin dondurdugu tek bir plan satiri."""
@@ -271,13 +277,34 @@ def _placement_bounds(
     return max(cursor, window_start), min(slot_end, window_end)
 
 
+def _unplaced_entry(goal: ActivityGoal, amount: float) -> dict:
+    """Kullaniciya donen 'yerlesemedi' satiri; miktar hedefin kendi biriminde."""
+    rounded = round(amount, 2)
+    return {
+        "id": goal.id,
+        "name": goal.name,
+        "amount": int(rounded) if rounded == int(rounded) else rounded,
+        "unit": goal.unit,
+    }
+
+
 def apply_activity_plan(
     free_slots: List[Tuple[int, datetime, datetime]],
     activity_plan: List[ActivityPlanItem],
     goals: List[ActivityGoal]
 ) -> List[Tuple[datetime, datetime, str]]:
+    """Geriye uyumlu sarmalayici: yalnizca etkinlikleri dondurur."""
+    return place_activity_plan(free_slots, activity_plan, goals)[0]
+
+
+def place_activity_plan(
+    free_slots: List[Tuple[int, datetime, datetime]],
+    activity_plan: List[ActivityPlanItem],
+    goals: List[ActivityGoal]
+) -> Tuple[List[Tuple[datetime, datetime, str]], List[dict]]:
     """
-    Aktivite planını boş slotlara çakışma olmadan yerleştirir
+    Aktivite planını boş slotlara çakışma olmadan yerleştirir ve modelin
+    istedigi halde siğdirilamayan saatleri aktivite basina raporlar.
 
     Model yalnizca gun ve saat sayisi dondurur, saat dilimi dondurmez; bu
     yuzden tercih edilen zaman araligi burada uygulanir. Once pencereye
@@ -294,6 +321,7 @@ def apply_activity_plan(
     """
     goals_by_id = {goal.id: goal for goal in goals}
     activity_events = []
+    unplaced_hours: dict = {}
 
     # Gün bazında boş slotları grupla
     available_slots = []
@@ -345,22 +373,40 @@ def apply_activity_plan(
                 slot['used_until'] = activity_end
                 remaining_hours -= hours_to_place
 
-    return activity_events
+        if remaining_hours > 0:
+            unplaced_hours[goal.id] = unplaced_hours.get(goal.id, 0) + remaining_hours
+
+    unplaced = [
+        _unplaced_entry(goals_by_id[goal_id], hours)
+        for goal_id, hours in unplaced_hours.items()
+    ]
+    return activity_events, unplaced
 
 
 def generate_basic_plan(
     free_slots: List[Tuple[int, datetime, datetime]],
     goals: List[ActivityGoal]
 ) -> List[Tuple[datetime, datetime, str]]:
+    """Geriye uyumlu sarmalayici: yalnizca etkinlikleri dondurur."""
+    return place_basic_plan(free_slots, goals)[0]
+
+
+def place_basic_plan(
+    free_slots: List[Tuple[int, datetime, datetime]],
+    goals: List[ActivityGoal]
+) -> Tuple[List[Tuple[datetime, datetime, str]], List[dict]]:
     """
     API olmadan basit aktivite plani olusturur (fallback).
 
     Tercih edilen pencereye denk gelen slotlar once denenir ve yerlestirme o
     geciste pencerenin icine kenetlenir; aktivite oraya sigmazsa serbest
-    geciste herhangi bir bos slota konur. Yerlesemeyen saatler sessizce
-    dusulur - kullaniciya bildirmek backlog madde 8.
+    geciste herhangi bir bos slota konur. Saat hedefleri en fazla
+    MAX_BLOCK_HOURS'luk bloklara bolunur ve once henuz kullanilmamis gunlere
+    dagitilir; MIN_BLOCK_HOURS'tan kisa kirintilar atlanir. Yerlesemeyen
+    miktar ikinci donus degerinde aktivite basina raporlanir.
     """
     activity_events = []
+    unplaced: List[dict] = []
     used_until = {index: start for index, (_, start, _) in enumerate(free_slots)}
 
     def slot_matches(slot_index: int, preferred: str) -> bool:
@@ -424,26 +470,40 @@ def generate_basic_plan(
                     used_until[slot_index] = activity_end
                     used_days.add(day_index)
                     sessions_needed -= 1
+
+            if sessions_needed > 0:
+                unplaced.append(_unplaced_entry(goal, sessions_needed))
         else:
             remaining = goal.amount
+            used_days = set()
+
+            def room(slot_index: int, clamp: bool) -> Tuple[datetime, float]:
+                _, slot_start, slot_end = free_slots[slot_index]
+                cursor, limit = _placement_bounds(
+                    slot_start, slot_end, used_until[slot_index], goal.preferred, clamp
+                )
+                return cursor, (limit - cursor).total_seconds() / 3600
 
             for slot_indices, clamp in passes:
-                for slot_index in slot_indices:
-                    if remaining <= 0:
+                while remaining > 0:
+                    # Once bu aktivitenin henuz ugramadigi bir gun, sonra
+                    # herhangi bir slot: ayni aksama yigilmak yerine haftaya
+                    # yayilir.
+                    candidates = [i for i in slot_indices if room(i, clamp)[1] >= MIN_BLOCK_HOURS]
+                    if not candidates:
                         break
+                    fresh = [i for i in candidates if free_slots[i][0] not in used_days]
+                    slot_index = (fresh or candidates)[0]
 
-                    _, slot_start, slot_end = free_slots[slot_index]
-                    cursor, limit = _placement_bounds(
-                        slot_start, slot_end, used_until[slot_index], goal.preferred, clamp
-                    )
-                    available = (limit - cursor).total_seconds() / 3600
-                    if available <= 0:
-                        continue
-
-                    hours_to_use = min(remaining, available, 2)
+                    cursor, available = room(slot_index, clamp)
+                    hours_to_use = min(remaining, available, MAX_BLOCK_HOURS)
                     activity_end = cursor + timedelta(hours=hours_to_use)
                     activity_events.append((cursor, activity_end, goal.name))
                     used_until[slot_index] = activity_end
+                    used_days.add(free_slots[slot_index][0])
                     remaining -= hours_to_use
 
-    return activity_events
+            if remaining > 0:
+                unplaced.append(_unplaced_entry(goal, remaining))
+
+    return activity_events, unplaced
