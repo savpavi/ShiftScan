@@ -18,9 +18,9 @@ from services.timeline_builder import build_timeline, find_free_slots
 from services.ics_generator import generate_final_ics
 from services.models import MAX_ACTIVITIES, ActivityGoal, CalendarLabels
 from services.ai_planner import (
-    apply_activity_plan,
+    place_activity_plan,
     configure_gemini,
-    generate_basic_plan,
+    place_basic_plan,
     get_gemini_activity_plan,
     is_gemini_configured,
 )
@@ -120,15 +120,18 @@ async def generate_plan(plan_data: PlanRequest):
         )
 
         if activity_plan:
-            activity_events = apply_activity_plan(
+            activity_events, unplaced = place_activity_plan(
                 free_slots, activity_plan, plan_data.activities
             )
             plan_source = "ai"
         else:
-            activity_events = generate_basic_plan(free_slots, plan_data.activities)
+            activity_events, unplaced = place_basic_plan(free_slots, plan_data.activities)
             plan_source = "fallback"
 
-        print(f"INFO: {len(activity_events)} aktivite yerlestirildi ({plan_source})")
+        print(
+            f"INFO: {len(activity_events)} aktivite yerlestirildi ({plan_source}), "
+            f"{len(unplaced)} hedef eksik kaldi"
+        )
 
         # 4. ICS
         final_ics = generate_final_ics(timeline, activity_events, plan_data.labels)
@@ -137,6 +140,7 @@ async def generate_plan(plan_data: PlanRequest):
             "status": "success",
             "message": "Plan generated",
             "plan_source": plan_source,
+            "unplaced": unplaced,
             "ics_content": final_ics,
             "download_ready": True,
         }

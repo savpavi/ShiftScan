@@ -150,3 +150,22 @@ def test_duplicate_activity_ids_are_rejected():
     response = client.post("/generate-plan", json=plan_body(activities=duplicated))
 
     assert response.status_code == 422
+
+
+def test_generate_plan_reports_unplaced_goals():
+    """Bos zamana sigmayan hedef sessizce dusmez, yanitta listelenir."""
+    body = plan_body(
+        shift_events=[
+            {"start": f"2026-08-{24 + i:02d}T07:00:00+03:00", "end": f"2026-08-{24 + i:02d}T22:00:00+03:00"}
+            for i in range(7)
+        ],
+        activities=[{"id": "a1", "name": "Reading", "amount": 100, "unit": "hours"}],
+    )
+
+    response = client.post("/generate-plan", json=body)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["plan_source"] == "fallback"
+    assert payload["unplaced"] and payload["unplaced"][0]["id"] == "a1"
+    assert payload["unplaced"][0]["amount"] > 0

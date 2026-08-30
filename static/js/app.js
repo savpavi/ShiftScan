@@ -647,6 +647,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return result.trim();
     }
 
+    // Backend'in yerlestiremedigi hedefleri tek satirlik uyariya cevirir;
+    // bos liste veya eksik alan -> null (uyari yok).
+    function formatUnplaced(unplaced) {
+        if (!Array.isArray(unplaced) || unplaced.length === 0) {
+            return null;
+        }
+        const t = (key, fallback) => (window.i18n ? window.i18n.t(key) : fallback);
+        const list = unplaced.map((item) => {
+            const unit = item.unit === 'days' ? t('unitDaysShort', 'd') : t('unitHoursShort', 'h');
+            return `${item.name} (${item.amount} ${unit})`;
+        }).join(', ');
+        const template = t('planUnplaced', 'Not enough free time; could not place: {list}');
+        return template.replace('{list}', list);
+    }
+
     function parseLineToShifts(ocrText) {
         console.log('OCR Ham Metin:', ocrText);
 
@@ -1296,6 +1311,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.status === 'success' && result.ics_content) {
                     downloadICSFromContent(result.ics_content, 'akilli_haftalik_plan.ics');
                     showAlert(window.i18n?.t('planCreated') || 'Akıllı haftalık plan başarıyla oluşturuldu!', 'success');
+                    const unplacedMessage = formatUnplaced(result.unplaced);
+                    if (unplacedMessage) {
+                        showAlert(unplacedMessage, 'warning');
+                    }
                 } else {
                     showAlert(window.i18n?.t('planDownloadError') || 'Plan oluşturuldu ancak indirilemedi.', 'warning');
                 }

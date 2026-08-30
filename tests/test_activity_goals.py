@@ -246,3 +246,77 @@ def test_fallback_pass_retries_a_window_matching_slot_unclamped():
     assert events, "pencereye sigmayan aktivite serbest gecisde yerlesmeliydi"
     start, end, _ = events[0]
     assert (end - start).total_seconds() / 3600 == DEFAULT_SESSION_HOURS
+
+
+# --- backlog 8: yerlestirme kalitesi -----------------------------------------
+
+from services.ai_planner import (
+    MAX_BLOCK_HOURS,
+    MIN_BLOCK_HOURS,
+    place_activity_plan,
+    place_basic_plan,
+)
+
+
+def test_basic_plan_spreads_hours_over_distinct_days_first():
+    """6 saatlik hedef, ilk gunun aksamina yigilmak yerine gunlere dagilir."""
+    goals = [ActivityGoal(id="a1", name="Reading", amount=6, unit="hours", preferred="evening")]
+    slots = [slot(0, 18, 23), slot(1, 18, 23), slot(2, 18, 23)]
+
+    events, unplaced = place_basic_plan(slots, goals)
+
+    days = [start.date() for start, _, _ in events]
+    assert len(set(days)) == 3, days
+    assert all((end - start).total_seconds() / 3600 <= MAX_BLOCK_HOURS for start, end, _ in events)
+    assert unplaced == []
+
+
+def test_basic_plan_skips_slivers_shorter_than_min_block():
+    goals = [ActivityGoal(id="a1", name="Reading", amount=1, unit="hours", preferred="any")]
+    sliver_end = slot(0, 7, 8)[1] + timedelta(minutes=15)
+    slots = [(0, slot(0, 7, 8)[1], sliver_end)]  # 15 dakikalik kirinti
+
+    events, unplaced = place_basic_plan(slots, goals)
+
+    assert events == []
+    assert unplaced == [{"id": "a1", "name": "Reading", "amount": 1, "unit": "hours"}]
+    assert MIN_BLOCK_HOURS > 0.25
+
+
+def test_basic_plan_reports_unplaced_hours_and_days():
+    goals = [
+        ActivityGoal(id="a1", name="Reading", amount=5, unit="hours", preferred="any"),
+        ActivityGoal(id="a2", name="Sport", amount=3, unit="days", preferred="any"),
+    ]
+    slots = [slot(0, 18, 20)]  # toplam 2 saat bos
+
+    events, unplaced = place_basic_plan(slots, goals)
+
+    placed = sum((end - start).total_seconds() / 3600 for start, end, _ in events)
+    assert placed == 2
+    assert {u["id"]: (u["amount"], u["unit"]) for u in unplaced} == {
+        "a1": (3, "hours"),
+        "a2": (3, "days"),
+    }
+
+
+def test_generate_basic_plan_keeps_returning_only_events():
+    goals = [ActivityGoal(id="a1", name="Reading", amount=1, unit="hours", preferred="any")]
+    assert isinstance(generate_basic_plan([slot(0, 18, 20)], goals), list)
+
+
+def test_ai_plan_reports_hours_it_could_not_place():
+    plan = [ActivityPlanItem(day_index=0, activity_id="a1", hours=4)]
+
+    events, unplaced = place_activity_plan([slot(0, 18, 20)], plan, GOALS)
+
+    assert len(events) == 1
+    assert unplaced == [{"id": "a1", "name": GOALS[0].name, "amount": 2, "unit": "hours"}]
+
+
+def test_ai_plan_with_everything_placed_reports_nothing():
+    plan = [ActivityPlanItem(day_index=0, activity_id="a1", hours=1)]
+
+    _, unplaced = place_activity_plan([slot(0, 18, 22)], plan, GOALS)
+
+    assert unplaced == []

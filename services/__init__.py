@@ -19,6 +19,8 @@ from .ai_planner import (
     create_gemini_activity_prompt,
     get_gemini_activity_plan,
     apply_activity_plan,
+    place_activity_plan,
+    place_basic_plan,
     generate_basic_plan,
 )
 
@@ -40,5 +42,7 @@ __all__ = [
     'create_gemini_activity_prompt',
     'get_gemini_activity_plan',
     'apply_activity_plan',
+    'place_activity_plan',
+    'place_basic_plan',
     'generate_basic_plan',
 ]
