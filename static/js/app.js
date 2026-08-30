@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             toastEl.innerHTML = `
                 <span class="toast-icon">${icons[type] || icons.info}</span>
                 <span class="toast-message">${message}</span>
-                <button class="toast-close" aria-label="Kapat">&times;</button>
+                <button class="toast-close" aria-label="${window.i18n ? window.i18n.t('close') : 'Close'}">&times;</button>
             `;
             
             // Kapatma butonu
@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Yeni klonlanan satırlar (aria-label, seçenek metinleri) mevcut dile
         // hemen senkronlansın; bir sonraki dil değişimini beklemesin.
-        if (window.i18n) window.i18n.updateUI();
+        if (window.i18n) window.i18n.updateUI(activityListEl);
 
         if (addActivityBtn) {
             addActivityBtn.disabled = activityList.length >= MAX_ACTIVITIES;

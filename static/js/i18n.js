@@ -47,13 +47,10 @@ Pazar 10:00 - 18:00`,
             activitiesHint: 'Boş zamanlarınıza yerleştirilecek aktiviteleri seçin',
             
             // Aktiviteler
-            contentProduction: 'İçerik Üretimi',
             sports: 'Spor',
             reading: 'Kitap Okuma',
             social: 'Sosyal Yaşam',
             gaming: 'Oyun / Dinlenme',
-            weeklyHours: 'Haftalık saat',
-            weeklyDays: 'Haftalık gün',
             addActivity: '+ Aktivite Ekle',
             newActivityName: 'Yeni aktivite',
             unitHours: 'saat',
@@ -140,6 +137,7 @@ Pazar 10:00 - 18:00`,
             scanToShare: 'Bu QR kodu tarayarak vardiya programını paylaşabilirsiniz',
             copyLink: 'Linki Kopyala',
             appTagline: 'Görselinden Takvime',
+            close: 'Kapat',
             ocrNanonetsDone: 'Nanonets AI ile OCR tamamlandı!',
             ocrLowConfidence: 'Düşük güven - lütfen kontrol edip düzenleyin',
             ocrTesseractDone: 'Tesseract ile OCR tamamlandı (yedek)',
@@ -190,13 +188,10 @@ Sun 10:00 - 18:00`,
             activitiesHint: 'Select activities to schedule in your free time',
             
             // Activities
-            contentProduction: 'Content Creation',
             sports: 'Sports',
             reading: 'Reading',
             social: 'Social Life',
             gaming: 'Gaming / Rest',
-            weeklyHours: 'Weekly hours',
-            weeklyDays: 'Weekly days',
             addActivity: '+ Add Activity',
             newActivityName: 'New activity',
             unitHours: 'hours',
@@ -283,6 +278,7 @@ Sun 10:00 - 18:00`,
             scanToShare: 'Scan this QR code to share the shift schedule',
             copyLink: 'Copy Link',
             appTagline: 'Image to Calendar',
+            close: 'Close',
             ocrNanonetsDone: 'OCR completed with Nanonets AI!',
             ocrLowConfidence: 'Low confidence - please check and edit',
             ocrTesseractDone: 'OCR completed with Tesseract (fallback)',
@@ -334,13 +330,10 @@ So 10:00 - 18:00`,
             activitiesHint: 'Wählen Sie Aktivitäten für Ihre Freizeit',
             
             // Aktivitäten
-            contentProduction: 'Content-Erstellung',
             sports: 'Sport',
             reading: 'Lesen',
             social: 'Soziales Leben',
             gaming: 'Spielen / Ausruhen',
-            weeklyHours: 'Wochenstunden',
-            weeklyDays: 'Wochentage',
             addActivity: '+ Aktivität hinzufügen',
             newActivityName: 'Neue Aktivität',
             unitHours: 'Stunden',
@@ -427,6 +420,7 @@ So 10:00 - 18:00`,
             scanToShare: 'Diesen QR-Code scannen, um den Schichtplan zu teilen',
             copyLink: 'Link kopieren',
             appTagline: 'Vom Bild zum Kalender',
+            close: 'Schließen',
             ocrNanonetsDone: 'OCR mit Nanonets AI abgeschlossen!',
             ocrLowConfidence: 'Geringe Sicherheit - bitte prüfen und korrigieren',
             ocrTesseractDone: 'OCR mit Tesseract abgeschlossen (Ersatz)',
@@ -476,13 +470,10 @@ Dim 10:00 - 18:00`,
             activitiesHint: 'Sélectionnez les activités pour votre temps libre',
             
             // Activités
-            contentProduction: 'Création de contenu',
             sports: 'Sport',
             reading: 'Lecture',
             social: 'Vie sociale',
             gaming: 'Jeux / Repos',
-            weeklyHours: 'Heures par semaine',
-            weeklyDays: 'Jours par semaine',
             addActivity: '+ Ajouter une activité',
             newActivityName: 'Nouvelle activité',
             unitHours: 'heures',
@@ -569,6 +560,7 @@ Dim 10:00 - 18:00`,
             scanToShare: 'Scannez ce QR code pour partager le planning',
             copyLink: 'Copier le lien',
             appTagline: "De l'image au calendrier",
+            close: 'Fermer',
             ocrNanonetsDone: 'OCR terminée avec Nanonets AI !',
             ocrLowConfidence: 'Faible confiance - veuillez vérifier et corriger',
             ocrTesseractDone: 'OCR terminée avec Tesseract (secours)',
@@ -649,15 +641,21 @@ Dim 10:00 - 18:00`,
     },
 
     // UI'ı güncelle
-    updateUI() {
-        this.applyLangAttribute();
-        const select = document.getElementById && document.getElementById('languageSelect');
-        if (select && select.value !== this.currentLang) {
-            select.value = this.currentLang;
+    // root verilirse yalnizca o alt agac guncellenir (ornegin yeni klonlanan
+    // aktivite satirlari); tum sayfayi yeniden yazmak OCR durum metni gibi
+    // calisma zamaninda degisen alanlari sifirliyordu.
+    updateUI(root) {
+        const scope = root || document;
+        if (!root) {
+            this.applyLangAttribute();
+            const select = document.getElementById && document.getElementById('languageSelect');
+            if (select && select.value !== this.currentLang) {
+                select.value = this.currentLang;
+            }
         }
 
         // data-i18n attribute'u olan tüm elemanları güncelle
-        document.querySelectorAll('[data-i18n]').forEach(el => {
+        scope.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
             const translation = this.t(key);
             if (translation) {
@@ -672,19 +670,21 @@ Dim 10:00 - 18:00`,
         });
 
         // data-i18n-placeholder için
-        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        scope.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
             const key = el.getAttribute('data-i18n-placeholder');
             el.placeholder = this.t(key);
         });
 
         // data-i18n-aria-label için
-        document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+        scope.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
             const key = el.getAttribute('data-i18n-aria-label');
             el.setAttribute('aria-label', this.t(key));
         });
 
         // Title güncelle
-        document.title = this.t('appTitle') + ' | ' + this.t('appTagline');
+        if (!root) {
+            document.title = this.t('appTitle') + ' | ' + this.t('appTagline');
+        }
     }
 };
 

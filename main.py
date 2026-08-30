@@ -75,14 +75,20 @@ async def service_worker():
 
 # Pydantic modelleri
 class ShiftEvent(BaseModel):
+    model_config = {"extra": "forbid"}
+
     start: str
     end: str
 
 class OCRRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
     image_base64: str = Field(..., max_length=MAX_IMAGE_BASE64_LENGTH)
     prompt: Optional[str] = Field(default=None, max_length=MAX_OCR_PROMPT_LENGTH)
 
 class PlanRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
     start_date: str
     timezone: str = "UTC"
     shift_events: List[ShiftEvent]

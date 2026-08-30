@@ -216,3 +216,11 @@ def test_service_worker_precaches_versioned_urls():
     assert "'/static/js/app.js'," in body
     assert "`${path}?v=${VERSION}`" in body
     assert f"const VERSION = '{main.STATIC_VERSION}';" in body
+
+
+def test_unknown_fields_are_rejected_everywhere():
+    assert client.post("/generate-plan", json=plan_body(surprise=1)).status_code == 422
+    body = plan_body()
+    body["shift_events"][0]["note"] = "x"
+    assert client.post("/generate-plan", json=body).status_code == 422
+    assert client.post("/ocr", json={"image_base64": "aGk=", "extra": 1}).status_code == 422
