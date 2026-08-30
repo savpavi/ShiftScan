@@ -101,7 +101,7 @@ app falls back to a rule-based planner and stays fully functional.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (95 tests)
+pytest                        # backend (97 tests)
 node --test tests/js/*.test.js  # browser tests (41 tests)
 ```
 

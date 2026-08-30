@@ -99,7 +99,7 @@ uygulama kural tabanlı planlayıcıya düşer ve çalışmaya devam eder.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (95 test)
+pytest                        # backend (97 test)
 node --test tests/js/*.test.js  # tarayici testleri (41 test)
 ```
 

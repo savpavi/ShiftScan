@@ -100,7 +100,7 @@ class PlanRequest(BaseModel):
 @app.get("/")
 async def home(request: Request):
     """Ana sayfayı render eder"""
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(request, "index.html", {"v": STATIC_VERSION})
 
 def _week_start_from(start_date: str) -> date:
     """'YYYY-MM-DD' girdisini haftanin Pazartesi'sine normalize eder."""

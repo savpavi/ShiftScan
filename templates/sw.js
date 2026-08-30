@@ -15,7 +15,9 @@ const VERSION = '__SW_VERSION__';
 const STATIC_CACHE = `shiftscan-static-${VERSION}`;
 const RUNTIME_CACHE = `shiftscan-runtime-${VERSION}`;
 
-// Onbellege alinacak dosyalar (index.html'in yukledigi her yerel dosya)
+// Onbellege alinacak dosyalar (index.html'in yukledigi her yerel dosya).
+// URL'ler surumlu: CDN (Cloudflare) /static/* dosyalarini saklar, sorgu
+// parametresi degisince yeni deploy'un dosyasi cekilir.
 const STATIC_ASSETS = [
     '/',
     '/static/css/style.css',
@@ -28,7 +30,7 @@ const STATIC_ASSETS = [
     '/static/js/app.js',
     '/static/manifest.json',
     '/static/icons/icon.svg'
-];
+].map((path) => (path === '/' ? path : `${path}?v=${VERSION}`));
 
 // CDN kaynaklari (ag oncelikli)
 const CDN_HOSTS = [
