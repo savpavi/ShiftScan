@@ -4,16 +4,10 @@ FROM python:3.10-slim
 # Çalışma dizinini ayarla
 WORKDIR /app
 
-# Sistem paketlerini yükle (Tesseract ve health check için gerekli)
-RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    tesseract-ocr-tur \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
+# Sistem paketleri (yalnizca health check icin curl)
+# OCR sunucuda calismiyor: birincil OCR uzak HuggingFace Space'te,
+# fallback ise tarayicida tesseract.js ile calisiyor.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -30,6 +24,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Uygulama dosyalarını kopyala
 COPY . .
+
+# Root olmayan kullanıcı
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 # Uygulamayı başlat
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

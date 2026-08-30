@@ -4,8 +4,14 @@ Vardiya ve uyku bloklarından zaman çizelgesi oluşturur
 """
 
 from typing import List, Tuple, Dict
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 import pytz
+
+# Gun adlari (Pazartesi = 0). Vardiya metni ayristirmasi tarayicida yapilir.
+DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+
+# Gece aktivite yasagi: bu saatten once slot uretilmez
+NIGHT_END_HOUR = 7
 
 
 def build_timeline(shift_events: List[Dict]) -> List[Tuple[datetime, datetime, str]]:
@@ -23,11 +29,8 @@ def build_timeline(shift_events: List[Dict]) -> List[Tuple[datetime, datetime, s
     
     for event in shift_events:
         # ISO string'i datetime'a çevir (UTC'den geliyor)
-        start_str = event.get('start', event.start if hasattr(event, 'start') else '')
-        end_str = event.get('end', event.end if hasattr(event, 'end') else '')
-        
-        start_dt = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
-        end_dt = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+        start_dt = datetime.fromisoformat(event['start'].replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(event['end'].replace('Z', '+00:00'))
         
         # UTC'den Istanbul'a çevir
         if start_dt.tzinfo is not None:
@@ -43,19 +46,21 @@ def build_timeline(shift_events: List[Dict]) -> List[Tuple[datetime, datetime, s
         # Vardiya bloğu
         timeline.append((start_dt, end_dt, "shift"))
         
-        # İNSANİ UYKU MANTIĞI
-        shift_end_hour = end_dt.hour
-        
-        if shift_end_hour < 22:  # 22:00'den önce biten vardiyalar
-            # O günün gecesine uyku (00:30 - 08:30)
-            sleep_date = end_dt.date()
-            sleep_start = istanbul_tz.localize(datetime.combine(sleep_date, datetime.min.time()).replace(hour=0, minute=30))
-            sleep_end = sleep_start + timedelta(hours=8)  # 00:30 - 08:30
-        else:  # 22:00'den sonra biten vardiyalar
-            # İş çıkışından 1 saat sonra uyku
+        # INSANI UYKU MANTIGI
+        # Uyku her zaman vardiyayi *izleyen* dinlenmedir, oncesindeki degil.
+        overnight = start_dt.date() != end_dt.date()  # gece vardiyasi, ertesi sabah biter
+
+        if overnight or end_dt.hour >= 22:
+            # Is cikisindan 1 saat sonra uyku (gece vardiyasindan cikan kisi
+            # ayni sabah uyur, gec biten vardiyanin uykusu da hemen ardindan gelir)
             sleep_start = end_dt + timedelta(hours=1)
-            sleep_end = sleep_start + timedelta(hours=8)
-        
+        else:
+            # Normal gunduz/aksam vardiyasi: vardiyayi izleyen gece 00:30
+            sleep_start = istanbul_tz.localize(
+                datetime.combine(end_dt.date() + timedelta(days=1), time(hour=0, minute=30))
+            )
+
+        sleep_end = sleep_start + timedelta(hours=8)
         timeline.append((sleep_start, sleep_end, "sleep"))
     
     # Kronolojik sırala
@@ -63,85 +68,62 @@ def build_timeline(shift_events: List[Dict]) -> List[Tuple[datetime, datetime, s
     return timeline
 
 
-def find_free_slots(timeline: List[Tuple[datetime, datetime, str]]) -> List[Tuple[str, datetime, datetime]]:
+def find_free_slots(
+    timeline: List[Tuple[datetime, datetime, str]],
+    week_start: date,
+) -> List[Tuple[str, datetime, datetime]]:
     """
-    Timeline'daki boş zaman slotlarını bul (Europe/Istanbul timezone) - INSOMNIA FİLTRESİ ile
-    
+    Timeline'daki bos zaman slotlarini bul (Europe/Istanbul timezone)
+
+    Hafta, ilk vardiyadan degil acikca verilen week_start'tan kurulur; boylece
+    hic vardiyasi olmayan izin gunleri de planlamaya dahil olur.
+
+    Gece aktivite yasagi: gunun ilk slotu NIGHT_END_HOUR'dan once baslamaz.
+
     Args:
         timeline: Timeline listesi
-    
+        week_start: Haftanin ilk gunu (Pazartesi)
+
     Returns:
         Free slots listesi: [(day_name, start, end), ...]
     """
-    day_names = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
     free_slots = []
-    
-    # Haftanın her günü için kontrol et
-    base_date = timeline[0][0].date() if timeline else datetime.now().date()
-    week_start = base_date - timedelta(days=base_date.weekday())
     istanbul_tz = pytz.timezone('Europe/Istanbul')
-    
-    # O günki gece vardiyası var mı?
-    night_shift_days = set()
-    for start, end, block_type in timeline:
-        if block_type == "shift" and end.hour >= 22:  # 22:00'den sonra biten vardiya
-            night_shift_days.add(end.date())
-    
+
     for day_offset in range(7):
         current_day = week_start + timedelta(days=day_offset)
-        day_name = day_names[day_offset]
-        
-        # Günün başlangıcı ve sonu (Istanbul timezone)
-        day_start = istanbul_tz.localize(datetime.combine(current_day, datetime.min.time()))
-        day_end = istanbul_tz.localize(datetime.combine(current_day, datetime.max.time()))
-        
-        # O günki blokları filtrele
-        day_blocks = [
-            (max(start, day_start), min(end, day_end), block_type)
-            for start, end, block_type in timeline
-            if start < day_end and end > day_start
-        ]
-        day_blocks.sort(key=lambda x: x[0])
-        
-        # Boş slotları hesapla
-        current_time = day_start
-        for block_start, block_end, block_type in day_blocks:
-            if current_time < block_start:
-                potential_slot = (day_name, current_time, block_start)
-                
-                # INSOMNIA FİLTRESİ: Gece 00:00-07:00 arası slotları kontrol et
-                slot_start_hour = current_time.hour
-                slot_end_hour = block_start.hour
-                
-                # Eğer bu gece vardiyası günü DEĞİLSE ve slot geceye denk geliyorsa, atla
-                is_night_shift_day = current_day in night_shift_days
-                
-                if not is_night_shift_day:
-                    # Gece 00:00-07:00 arası slotları filtrele
-                    if slot_start_hour >= 0 and slot_start_hour < 7:
-                        current_time = block_end
-                        continue
-                    
-                    # Eğer slot geceye sızıyorsa, kırp
-                    if slot_start_hour < 7 and slot_end_hour > 7:
-                        cropped_start = istanbul_tz.localize(datetime.combine(current_day, datetime.min.time()).replace(hour=7))
-                        if cropped_start < block_start:
-                            free_slots.append((day_name, cropped_start, block_start))
-                    elif slot_start_hour >= 7:
-                        free_slots.append(potential_slot)
-                else:
-                    free_slots.append(potential_slot)
-                    
-            current_time = max(current_time, block_end)
-        
-        # Gün sonuna kadar kalan boşluk
-        if current_time < day_end:
-            slot_start_hour = current_time.hour
-            is_night_shift_day = current_day in night_shift_days
-            
-            if not is_night_shift_day and slot_start_hour >= 0 and slot_start_hour < 7:
-                pass  # Gece slotunu atla
-            else:
-                free_slots.append((day_name, current_time, day_end))
-    
+        day_name = DAY_NAMES[day_offset]
+
+        # Gun sinirlari: [00:00, ertesi gun 00:00) - yarim acik aralik
+        day_start = istanbul_tz.localize(datetime.combine(current_day, time.min))
+        day_end = istanbul_tz.localize(
+            datetime.combine(current_day + timedelta(days=1), time.min)
+        )
+
+        # Gece kisiti her gun gecerli. Gece vardiyasinin kendisi zaten bir blok
+        # oldugu icin ayri bir istisna gerekmiyor; onceki kural aksam vardiyasini
+        # gece vardiyasi sanip tum geceyi aktiviteye aciyordu.
+        earliest = istanbul_tz.localize(
+            datetime.combine(current_day, time(hour=NIGHT_END_HOUR))
+        )
+
+        # O gune denk gelen bloklari gun sinirlarina kirp
+        day_blocks = sorted(
+            (
+                (max(start, day_start), min(end, day_end), block_type)
+                for start, end, block_type in timeline
+                if start < day_end and end > day_start
+            ),
+            key=lambda block: block[0],
+        )
+
+        cursor = earliest
+        for block_start, block_end, _ in day_blocks:
+            if block_start > cursor:
+                free_slots.append((day_name, cursor, block_start))
+            cursor = max(cursor, block_end)
+
+        if cursor < day_end:
+            free_slots.append((day_name, cursor, day_end))
+
     return free_slots

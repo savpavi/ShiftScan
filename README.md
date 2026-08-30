@@ -59,6 +59,37 @@ Wed 14:00 - 22:00
 ### Day Off Keywords
 OFF, LEAVE, REST, HOLIDAY
 
+## Privacy
+
+**Images you scan are sent to a third party.** OCR runs on the public HuggingFace
+Space `prithivMLmods/Multimodal-OCR`, operated by an independent party — not by
+this project. A shift schedule photo can reveal your employer, your name and your
+working hours.
+
+If that is not acceptable for your use case:
+
+- use the manual text input instead of the image scan, or
+- self-host the OCR model and point `MULTIMODAL_OCR_SPACE` in
+  `services/ocr_service.py` at your own instance.
+
+This application does not store uploaded images. They are written to a temporary
+file for the duration of the request and deleted immediately afterwards.
+
+When the AI planner is enabled, your free-time summary and activity goals are sent
+to Google Gemini. The image is never sent to Gemini. Without `GOOGLE_API_KEY` the
+app falls back to a rule-based planner and stays fully functional.
+
+## Running Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest                        # backend (31 tests)
+node --test tests/js/*.test.js  # ICS generation in the browser (9 tests)
+```
+
+Both suites run on every push and pull request via GitHub Actions
+(`.github/workflows/ci.yml`), together with a Docker build.
+
 ## License
 
 MIT License

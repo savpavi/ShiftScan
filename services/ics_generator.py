@@ -1,19 +1,67 @@
 """
 ICS Generator Service
-ICS takvim dosyası oluşturma işlemleri
+RFC 5545 uyumlu ICS takvim dosyasi olusturma islemleri
 """
 
-from typing import List, Tuple, Dict
-from datetime import datetime
+from typing import List, Tuple
+from datetime import datetime, timezone
+
+# RFC 5545 icerik satiri siniri: 75 oktet (CRLF haric)
+MAX_LINE_OCTETS = 75
+
+
+def escape_text(value: str) -> str:
+    """RFC 5545 TEXT kacisi: ters bolu, noktali virgul, virgul ve satir sonu.
+
+    Kacis olmadan bir aktivite adindaki satir sonu yeni bir ICS ozelligi
+    enjekte edebilir; ters bolu once kacirilmalidir.
+    """
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\r\n", "\\n")
+        .replace("\r", "\\n")
+        .replace("\n", "\\n")
+    )
+
+
+def fold_line(line: str) -> str:
+    """Uzun icerik satirini 75 oktette katlar; devam satirlari bosluk ile baslar."""
+    encoded = line.encode("utf-8")
+    if len(encoded) <= MAX_LINE_OCTETS:
+        return line
+
+    chunks: List[str] = []
+    current = ""
+    current_octets = 0
+    limit = MAX_LINE_OCTETS
+
+    for char in line:
+        char_octets = len(char.encode("utf-8"))
+        if current_octets + char_octets > limit:
+            chunks.append(current)
+            current = char
+            current_octets = char_octets
+            limit = MAX_LINE_OCTETS - 1  # devam satirlarinda bastaki bosluk sayilir
+        else:
+            current += char
+            current_octets += char_octets
+
+    chunks.append(current)
+    return "\r\n ".join(chunks)
 
 
 def generate_ics_header() -> str:
-    """ICS dosya başlığını oluşturur"""
-    return """BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Vardiya Takvimi//TR
-CALSCALE:GREGORIAN
-"""
+    """ICS dosya basligini olusturur"""
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//ShiftScan//TR",
+        "CALSCALE:GREGORIAN",
+    ]
+    return "".join(line + "\r\n" for line in lines)
 
 
 def generate_ics_event(
@@ -21,32 +69,38 @@ def generate_ics_event(
     start: datetime,
     end: datetime,
     summary: str,
-    description: str = ""
+    description: str = "",
+    dtstamp: datetime = None
 ) -> str:
     """
-    Tek bir ICS event oluşturur
-    
+    Tek bir ICS event olusturur
+
     Args:
         uid: Unique identifier
-        start: Başlangıç zamanı
-        end: Bitiş zamanı
-        summary: Etkinlik adı
-        description: Açıklama (opsiyonel)
-    
+        start: Baslangic zamani (floating local time)
+        end: Bitis zamani (floating local time)
+        summary: Etkinlik adi
+        description: Aciklama (opsiyonel)
+        dtstamp: Olusturulma damgasi (UTC); verilmezse simdiki zaman
+
     Returns:
         ICS event string
     """
-    event = f"""BEGIN:VEVENT
-UID:{uid}
-DTSTART:{start.strftime('%Y%m%dT%H%M%S')}
-DTEND:{end.strftime('%Y%m%dT%H%M%S')}
-SUMMARY:{summary}
-"""
+    stamp = dtstamp or datetime.now(timezone.utc)
+
+    lines = [
+        "BEGIN:VEVENT",
+        f"UID:{escape_text(uid)}",
+        f"DTSTAMP:{stamp.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+        f"DTSTART:{start.strftime('%Y%m%dT%H%M%S')}",
+        f"DTEND:{end.strftime('%Y%m%dT%H%M%S')}",
+        f"SUMMARY:{escape_text(summary)}",
+    ]
     if description:
-        event += f"DESCRIPTION:{description}\n"
-    
-    event += "END:VEVENT\n"
-    return event
+        lines.append(f"DESCRIPTION:{escape_text(description)}")
+    lines.append("END:VEVENT")
+
+    return "".join(fold_line(line) + "\r\n" for line in lines)
 
 
 def generate_final_ics(
@@ -54,90 +108,28 @@ def generate_final_ics(
     activity_events: List[Tuple[datetime, datetime, str]]
 ) -> str:
     """
-    Timeline ve aktivitelerden son ICS'i oluştur (Floating Time - Europe/Istanbul)
-    
+    Timeline ve aktivitelerden son ICS'i olustur (Floating Time - Europe/Istanbul)
+
     Args:
-        timeline: Vardiya ve uyku blokları
+        timeline: Vardiya ve uyku bloklari
         activity_events: Aktivite etkinlikleri
-    
+
     Returns:
-        Tam ICS dosya içeriği
+        Tam ICS dosya icerigi
     """
+    stamp = datetime.now(timezone.utc)
     ics = generate_ics_header()
-    
-    # Timeline bloklarını ekle (vardiya + uyku)
-    for start, end, block_type in timeline:
+
+    # Timeline bloklarini ekle (vardiya + uyku)
+    for index, (start, end, block_type) in enumerate(timeline):
         summary = "Vardiya" if block_type == "shift" else "Uyku"
-        uid = f"{block_type}-{start.strftime('%Y%m%d%H%M')}"
-        ics += generate_ics_event(uid, start, end, summary)
-    
-    # Aktivite olaylarını ekle
-    for start, end, activity_name in activity_events:
-        uid = f"activity-{start.strftime('%Y%m%d%H%M')}"
-        ics += generate_ics_event(uid, start, end, activity_name)
-    
-    ics += "END:VCALENDAR"
+        uid = f"{block_type}-{start.strftime('%Y%m%d%H%M')}-{index}@shiftscan"
+        ics += generate_ics_event(uid, start, end, summary, dtstamp=stamp)
+
+    # Aktivite olaylarini ekle
+    for index, (start, end, activity_name) in enumerate(activity_events):
+        uid = f"activity-{start.strftime('%Y%m%d%H%M')}-{index}@shiftscan"
+        ics += generate_ics_event(uid, start, end, activity_name, dtstamp=stamp)
+
+    ics += "END:VCALENDAR\r\n"
     return ics
-
-
-def generate_simple_ics(events: List[Dict]) -> str:
-    """
-    Basit vardiya ICS'i oluştur (AI olmadan)
-    
-    Args:
-        events: Event listesi (title, start, end, original_line)
-    
-    Returns:
-        ICS dosya içeriği
-    """
-    ics = generate_ics_header()
-    
-    for i, event in enumerate(events):
-        start = event.get('start')
-        end = event.get('end')
-        title = event.get('title', 'Vardiya')
-        original_line = event.get('original_line', '')
-        
-        uid = f"vardiya-{start.strftime('%Y%m%dT%H%M%S')}" if isinstance(start, datetime) else f"vardiya-{i}"
-        
-        if isinstance(start, datetime) and isinstance(end, datetime):
-            ics += generate_ics_event(uid, start, end, title, original_line)
-    
-    ics += "END:VCALENDAR"
-    return ics
-
-
-def format_ics_date(date: datetime) -> str:
-    """Datetime'ı ICS formatına çevirir"""
-    return date.strftime('%Y%m%dT%H%M%S')
-
-
-def clean_ics_response(response_text: str) -> str:
-    """Gemini yanıtını temizleyerek saf ICS formatı elde eder"""
-    
-    # Code block işaretlerini kaldır
-    if "```" in response_text:
-        lines = response_text.split('\n')
-        ics_lines = []
-        in_code_block = False
-        
-        for line in lines:
-            if line.strip().startswith('```'):
-                in_code_block = not in_code_block
-                continue
-            if in_code_block or not line.strip().startswith('```'):
-                ics_lines.append(line)
-        
-        response_text = '\n'.join(ics_lines)
-    
-    # BEGIN:VCALENDAR ile başlayan kısmı al
-    if "BEGIN:VCALENDAR" in response_text:
-        start_idx = response_text.find("BEGIN:VCALENDAR")
-        response_text = response_text[start_idx:]
-    
-    # END:VCALENDAR ile biten kısmı al
-    if "END:VCALENDAR" in response_text:
-        end_idx = response_text.rfind("END:VCALENDAR") + len("END:VCALENDAR")
-        response_text = response_text[:end_idx]
-    
-    return response_text.strip()

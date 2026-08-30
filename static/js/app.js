@@ -190,11 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     }
 
-    function formatICSDate(date) {
-        const pad = (n) => (n < 10 ? "0" + n : "" + n);
-        return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-    }
-
     // ============================================
     // DİL SEÇİCİ
     // ============================================
@@ -797,26 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     
     function generateICS(events) {
-        let icsContent = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Vardiya Takvimi//TR\r\nCALSCALE:GREGORIAN\r\n";
-
-        events.forEach(ev => {
-            const dtStart = formatICSDate(ev.start);
-            const dtEnd = formatICSDate(ev.end);
-            const now = formatICSDate(new Date());
-            const uid = `vardiya-${dtStart}@vardiya-takvimi`;
-
-            icsContent += "BEGIN:VEVENT\r\n";
-            icsContent += `UID:${uid}\r\n`;
-            icsContent += `DTSTAMP:${now}\r\n`;
-            icsContent += `DTSTART:${dtStart}\r\n`;
-            icsContent += `DTEND:${dtEnd}\r\n`;
-            icsContent += `SUMMARY:${ev.title}\r\n`;
-            icsContent += `DESCRIPTION:${ev.originalLine}\r\n`;
-            icsContent += "END:VEVENT\r\n";
-        });
-
-        icsContent += "END:VCALENDAR\r\n";
-        return icsContent;
+        return window.ShiftScanICS.buildICS(events);
     }
 
     function downloadICS(events, filename = 'vardiya_programi.ics') {
