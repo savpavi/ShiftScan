@@ -22,7 +22,14 @@ except ImportError:
     GEMINI_AVAILABLE = False
     genai = None
 
-GEMINI_MODEL = "gemini-2.0-flash"
+# gemini-2.0-flash 2026-08-30'da 404 "no longer available" dondu; Google'in
+# yonlendirdigi model varsayilan, GEMINI_MODEL ortam degiskeni ile degisir.
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+
+
+def gemini_model_name() -> str:
+    """Kullanilacak Gemini modelinin adi (env > varsayilan)."""
+    return os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
 
 # Tembel kurulan tek istemci; configure_gemini() veya ilk cagri olusturur.
 _client = None
@@ -193,7 +200,7 @@ async def get_gemini_activity_plan(
     try:
         started = time.time()
         response = await asyncio.wait_for(
-            client.aio.models.generate_content(model=GEMINI_MODEL, contents=prompt),
+            client.aio.models.generate_content(model=gemini_model_name(), contents=prompt),
             timeout=timeout,
         )
         print(f"INFO: Gemini yanit verdi ({time.time() - started:.2f}s)")

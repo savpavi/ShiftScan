@@ -26,6 +26,7 @@ pip install -r requirements.txt
 3. (Optional) Create `.env` file for Gemini API:
 ```
 GOOGLE_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-3.6-flash   # optional, defaults to this
 ```
 
 ## Usage
@@ -100,7 +101,7 @@ app falls back to a rule-based planner and stays fully functional.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (80 tests)
+pytest                        # backend (82 tests)
 node --test tests/js/*.test.js  # browser tests (28 tests)
 ```
 
