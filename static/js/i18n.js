@@ -135,12 +135,29 @@ Pazar 10:00 - 18:00`,
             eightWeeks: '8 Hafta (2 Ay)',
             twelveWeeks: '12 Hafta (3 Ay)',
             repeatApplied: 'Vardiyalar {weeks} hafta için tekrarlandı',
-            
-            // QR Kod Paylaşım
             share: 'Paylaş',
             shareWithQR: 'QR Kod ile Paylaş',
             scanToShare: 'Bu QR kodu tarayarak vardiya programını paylaşabilirsiniz',
-            copyLink: 'Linki Kopyala'
+            copyLink: 'Linki Kopyala',
+            appTagline: 'Görselinden Takvime',
+            ocrNanonetsDone: 'Nanonets AI ile OCR tamamlandı!',
+            ocrLowConfidence: 'Düşük güven - lütfen kontrol edip düzenleyin',
+            ocrTesseractDone: 'Tesseract ile OCR tamamlandı (yedek)',
+            icsDownloaded: 'ICS dosyası indirildi{extra}!',
+            icsDownloadedWeeks: '{weeks} haftalık ICS dosyası indirildi{extra}!',
+            pdfCreating: 'PDF oluşturuluyor...',
+            pdfDownloaded: 'PDF indirildi!',
+            pdfFailed: 'PDF oluşturulamadı',
+            excelCreating: 'Excel oluşturuluyor...',
+            excelDownloaded: 'Excel indirildi!',
+            excelFailed: 'Excel oluşturulamadı',
+            qrFailed: 'QR kod oluşturulamadı',
+            linkCopied: 'Link kopyalandı!',
+            sharedLoaded: 'Paylaşılan program yüklendi!',
+            darkModeOn: 'Karanlık mod aktif',
+            lightModeOn: 'Aydınlık mod aktif',
+            
+            // QR Kod Paylaşım
         },
         
         en: {
@@ -261,12 +278,29 @@ Sun 10:00 - 18:00`,
             eightWeeks: '8 Weeks (2 Months)',
             twelveWeeks: '12 Weeks (3 Months)',
             repeatApplied: 'Shifts repeated for {weeks} weeks',
-            
-            // QR Code Sharing
             share: 'Share',
             shareWithQR: 'Share with QR Code',
             scanToShare: 'Scan this QR code to share the shift schedule',
-            copyLink: 'Copy Link'
+            copyLink: 'Copy Link',
+            appTagline: 'Image to Calendar',
+            ocrNanonetsDone: 'OCR completed with Nanonets AI!',
+            ocrLowConfidence: 'Low confidence - please check and edit',
+            ocrTesseractDone: 'OCR completed with Tesseract (fallback)',
+            icsDownloaded: 'ICS file downloaded{extra}!',
+            icsDownloadedWeeks: 'ICS file downloaded with {weeks} weeks{extra}!',
+            pdfCreating: 'Creating PDF...',
+            pdfDownloaded: 'PDF downloaded!',
+            pdfFailed: 'PDF export failed',
+            excelCreating: 'Creating Excel...',
+            excelDownloaded: 'Excel downloaded!',
+            excelFailed: 'Excel export failed',
+            qrFailed: 'QR code generation failed',
+            linkCopied: 'Link copied!',
+            sharedLoaded: 'Shared schedule loaded!',
+            darkModeOn: 'Dark mode enabled',
+            lightModeOn: 'Light mode enabled',
+            
+            // QR Code Sharing
         },
 
         // Almanca (German)
@@ -387,7 +421,28 @@ So 10:00 - 18:00`,
             fourWeeks: '4 Wochen (1 Monat)',
             eightWeeks: '8 Wochen (2 Monate)',
             twelveWeeks: '12 Wochen (3 Monate)',
-            repeatApplied: 'Schichten für {weeks} Wochen wiederholt'
+            repeatApplied: 'Schichten für {weeks} Wochen wiederholt',
+            share: 'Teilen',
+            shareWithQR: 'Per QR-Code teilen',
+            scanToShare: 'Diesen QR-Code scannen, um den Schichtplan zu teilen',
+            copyLink: 'Link kopieren',
+            appTagline: 'Vom Bild zum Kalender',
+            ocrNanonetsDone: 'OCR mit Nanonets AI abgeschlossen!',
+            ocrLowConfidence: 'Geringe Sicherheit - bitte prüfen und korrigieren',
+            ocrTesseractDone: 'OCR mit Tesseract abgeschlossen (Ersatz)',
+            icsDownloaded: 'ICS-Datei heruntergeladen{extra}!',
+            icsDownloadedWeeks: 'ICS-Datei mit {weeks} Wochen heruntergeladen{extra}!',
+            pdfCreating: 'PDF wird erstellt...',
+            pdfDownloaded: 'PDF heruntergeladen!',
+            pdfFailed: 'PDF-Export fehlgeschlagen',
+            excelCreating: 'Excel wird erstellt...',
+            excelDownloaded: 'Excel heruntergeladen!',
+            excelFailed: 'Excel-Export fehlgeschlagen',
+            qrFailed: 'QR-Code konnte nicht erstellt werden',
+            linkCopied: 'Link kopiert!',
+            sharedLoaded: 'Geteilter Plan geladen!',
+            darkModeOn: 'Dunkler Modus aktiv',
+            lightModeOn: 'Heller Modus aktiv'
         },
 
         // Fransızca (French)
@@ -508,39 +563,99 @@ Dim 10:00 - 18:00`,
             fourWeeks: '4 Semaines (1 Mois)',
             eightWeeks: '8 Semaines (2 Mois)',
             twelveWeeks: '12 Semaines (3 Mois)',
-            repeatApplied: 'Équipes répétées pour {weeks} semaines'
+            repeatApplied: 'Équipes répétées pour {weeks} semaines',
+            share: 'Partager',
+            shareWithQR: 'Partager par QR code',
+            scanToShare: 'Scannez ce QR code pour partager le planning',
+            copyLink: 'Copier le lien',
+            appTagline: "De l'image au calendrier",
+            ocrNanonetsDone: 'OCR terminée avec Nanonets AI !',
+            ocrLowConfidence: 'Faible confiance - veuillez vérifier et corriger',
+            ocrTesseractDone: 'OCR terminée avec Tesseract (secours)',
+            icsDownloaded: 'Fichier ICS téléchargé{extra} !',
+            icsDownloadedWeeks: 'Fichier ICS téléchargé avec {weeks} semaines{extra} !',
+            pdfCreating: 'Création du PDF...',
+            pdfDownloaded: 'PDF téléchargé !',
+            pdfFailed: "Échec de l'export PDF",
+            excelCreating: 'Création du fichier Excel...',
+            excelDownloaded: 'Excel téléchargé !',
+            excelFailed: "Échec de l'export Excel",
+            qrFailed: 'Échec de la génération du QR code',
+            linkCopied: 'Lien copié !',
+            sharedLoaded: 'Planning partagé chargé !',
+            darkModeOn: 'Mode sombre activé',
+            lightModeOn: 'Mode clair activé'
         }
     },
+
+    // Tarih bicimleme icin BCP 47 etiketi
+    locales: { tr: 'tr-TR', en: 'en-US', de: 'de-DE', fr: 'fr-FR' },
 
     // Dili ayarla
     setLanguage(lang) {
         if (this.translations[lang]) {
             this.currentLang = lang;
-            localStorage.setItem('vardiya-lang', lang);
+            try { localStorage.setItem('vardiya-lang', lang); } catch (e) { /* gizli sekme vb. */ }
             this.updateUI();
         }
     },
 
-    // Çeviri al
-    t(key) {
+    // Çeviri al; {ad} yer tutuculari params ile doldurulur
+    t(key, params) {
         const keys = key.split('.');
         let value = this.translations[this.currentLang];
         for (const k of keys) {
             value = value?.[k];
         }
-        return value || key;
+        if (typeof value !== 'string') {
+            return key;
+        }
+        if (params) {
+            Object.keys(params).forEach((name) => {
+                value = value.split('{' + name + '}').join(String(params[name]));
+            });
+        }
+        return value;
     },
 
-    // Kaydedilmiş dili yükle
+    locale() {
+        return this.locales[this.currentLang] || 'en-US';
+    },
+
+    // Ilk ziyarette tarayici dili; desteklenen yoksa Ingilizce
+    detectLanguage() {
+        const candidates = (typeof navigator !== 'undefined' && (navigator.languages || [navigator.language])) || [];
+        for (const tag of candidates) {
+            const code = String(tag || '').toLowerCase().split('-')[0];
+            if (this.translations[code]) {
+                return code;
+            }
+        }
+        return 'en';
+    },
+
+    // Kaydedilmiş dili yükle; yoksa tarayici dilinden sec
     loadSavedLanguage() {
-        const saved = localStorage.getItem('vardiya-lang');
-        if (saved && this.translations[saved]) {
-            this.currentLang = saved;
+        let saved = null;
+        try { saved = localStorage.getItem('vardiya-lang'); } catch (e) { /* yok say */ }
+        this.currentLang = (saved && this.translations[saved]) ? saved : this.detectLanguage();
+        this.applyLangAttribute();
+    },
+
+    applyLangAttribute() {
+        if (typeof document !== 'undefined' && document.documentElement) {
+            document.documentElement.lang = this.currentLang;
         }
     },
 
     // UI'ı güncelle
     updateUI() {
+        this.applyLangAttribute();
+        const select = document.getElementById && document.getElementById('languageSelect');
+        if (select && select.value !== this.currentLang) {
+            select.value = this.currentLang;
+        }
+
         // data-i18n attribute'u olan tüm elemanları güncelle
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
@@ -569,7 +684,7 @@ Dim 10:00 - 18:00`,
         });
 
         // Title güncelle
-        document.title = this.t('appTitle') + ' | ' + (this.currentLang === 'tr' ? 'Görselinden Takvime' : 'Image to Calendar');
+        document.title = this.t('appTitle') + ' | ' + this.t('appTagline');
     }
 };
 
