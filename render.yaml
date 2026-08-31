@@ -1,0 +1,18 @@
+# Render Blueprint for ShiftScan (https://render.com/docs/blueprint-spec).
+# Production moved here from a self-hosted Coolify instance on 2026-08-31.
+# The service builds the repository Dockerfile; uvicorn listens on 8000, so
+# PORT is pinned to the same value for Render's port detection.
+services:
+  - type: web
+    name: shiftscan
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: GOOGLE_API_KEY
+        sync: false # set in the Render dashboard or through the API; never committed
