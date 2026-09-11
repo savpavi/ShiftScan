@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let parsedEvents = [];
     let cropper = null;
     let isAdvancedMode = false;
+    let scanController = null;
+    let localWorker = null;
+    let planController = null;
 
     // ============================================
     // DOM ELEMANLARI
@@ -87,6 +90,13 @@ document.addEventListener('DOMContentLoaded', () => {
         dijitalAcentelik: document.getElementById('dijitalAcentelik')
     };
 
+    window.addEventListener('shiftscan:logout',()=>{
+        scanController?.abort();planController?.abort();elements.shiftText.value='';parsedEvents=[];elements.previewSection.classList.add('hidden');
+    });
+    [elements.shiftText, elements.startDateInput].forEach(input=>input.addEventListener('input',()=>{
+        parsedEvents=[];elements.previewSection.classList.add('hidden');
+    }));
+
     // ============================================
     // TOAST BİLDİRİM SİSTEMİ
     // ============================================
@@ -116,10 +126,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             toastEl.innerHTML = `
                 <span class="toast-icon">${icons[type] || icons.info}</span>
-                <span class="toast-message">${message}</span>
+                <span class="toast-message"></span>
                 <button class="toast-close" aria-label="${window.i18n ? window.i18n.t('close') : 'Close'}">&times;</button>
             `;
             
+            toastEl.querySelector('.toast-message').textContent = String(message);
+
             // Kapatma butonu
             toastEl.querySelector('.toast-close').addEventListener('click', () => {
                 this.hide(toastEl);
@@ -239,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.advancedModeToggle.checked = on;
         elements.advancedSection.classList.toggle('hidden', !on);
         elements.generatePlanBtn.classList.toggle('hidden', !on);
+        document.getElementById('planConnectionSettings').classList.toggle('hidden', !on);
     }
 
     if (elements.advancedModeToggle) {
@@ -388,6 +401,15 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.ocrInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8000000) {
+                showAlert('En fazla 8 MB PNG, JPEG veya WebP görseli yükleyin.', 'warning');
+                e.target.value = ''; return;
+            }
+            if (scanController) scanController.abort();
+            window.ShiftScanReview.reset();
+            elements.shiftText.value = '';
+            parsedEvents = [];
+            elements.previewSection.classList.add('hidden');
 
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -400,6 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Yeni Cropper başlat
+                if (typeof Cropper === 'undefined') return;
                 cropper = new Cropper(elements.imageToCrop, {
                     viewMode: 1,
                     dragMode: 'move',
@@ -421,236 +444,83 @@ document.addEventListener('DOMContentLoaded', () => {
     // OCR TARAMA (Nanonets-OCR2-3B + Tesseract Fallback)
     // ============================================
 
-    // Nanonets OCR API call
-    async function performNanonetsOCR(imageBase64) {
+    const ocrSelect = document.getElementById('ocrConnection');
+    const fullButton = document.getElementById('scanFullBtn');
+    const cancelButton = document.getElementById('cancelScanBtn');
+    ocrSelect.addEventListener('change', () => {
+        const connection = window.ShiftScanAccounts.getConnection(ocrSelect.value);
+        document.getElementById('ocrPrivacy').textContent = connection
+            ? `Görsel ${connection.label} (${connection.provider}) bağlantısına gönderilecek. Seçili model görsel desteklemeli; sağlayıcının API ücretleri geçerlidir.`
+            : 'Görsel cihazında işlenir. Çok kişili tabloda kendi satırını kırpman daha iyi sonuç verir.';
+    });
+    function scanCanvas(cropped) {
+        if (cropped && cropper) return cropper.getCroppedCanvas({maxWidth:4096,maxHeight:4096,fillColor:'#fff'});
+        const img = elements.imageToCrop;
+        if (!img.naturalWidth) throw new Error('Önce görsel yükleyin ve açılmasını bekleyin.');
+        const scale = Math.min(1,4096/Math.max(img.naturalWidth,img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);
+        const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        return canvas;
+    }
+    cancelButton.addEventListener('click',()=>{if(scanController)scanController.abort();});
+    async function scan(cropped) {
+        if(scanController)return;
+        const controller=new AbortController();scanController=controller;
+        const connectionId=ocrSelect.value;
+        const owner=window.ShiftScanAccounts.getUser()?.id;
+        let timer;
         try {
-            const response = await fetch('/ocr', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_base64: imageBase64 })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `HTTP ${response.status}`);
+            if (!elements.startDateInput.value) throw new Error('Önce hafta başlangıcını seçin.');
+            const canvas=scanCanvas(cropped);
+            if(!canvas)throw new Error('Görsel hazırlanamadı.');
+            fullButton.disabled=true;elements.scanCropBtn.disabled=true;cancelButton.hidden=false;
+            elements.ocrProgressContainer.classList.remove('hidden');
+            elements.ocrProgressBar.style.width='0%';elements.ocrPercent.textContent='';
+            elements.ocrStatusText.textContent=connectionId?'Tablo okunuyor…':'Cihazda OCR hazırlanıyor…';
+            parsedEvents=[];elements.previewSection.classList.add('hidden');
+            window.ShiftScanReview.reset();
+            timer=setTimeout(()=>controller.abort(),connectionId?60000:120000);
+            if(connectionId){
+                const result=await window.ShiftScanAccounts.api('/api/ocr/extract',{
+                    method:'POST',signal:controller.signal,
+                    body:JSON.stringify({connection_id:connectionId,start_date:elements.startDateInput.value,image_base64:canvas.toDataURL('image/jpeg',0.94)})
+                });
+                if(controller.signal.aborted)return;
+                if(owner!==window.ShiftScanAccounts.getUser()?.id)throw new Error('Oturum değişti; tarama sonucu kullanılmadı.');
+                window.ShiftScanReview.show(result);
+            }else{
+                if(typeof Tesseract==='undefined')throw new Error('Yerel OCR yüklenemedi. İnternet bağlantısını kontrol edin veya metni elle girin.');
+                localWorker=await Tesseract.createWorker('tur+eng',1,{
+                    logger:m=>{if(m.status==='recognizing text'&&!controller.signal.aborted){
+                        const p=Math.round(m.progress*100);elements.ocrProgressBar.style.width=`${p}%`;elements.ocrPercent.textContent=`%${p}`;
+                    }}
+                });
+                if(controller.signal.aborted)throw new DOMException('Aborted','AbortError');
+                controller.signal.addEventListener('abort',()=>{localWorker?.terminate();},{once:true});
+                const result=await localWorker.recognize(canvas);
+                if(controller.signal.aborted)return;
+                window.ShiftScanReview.show(window.ShiftScanReview.localSchedule(result.data.text,elements.startDateInput.value));
             }
-
-            const result = await response.json();
-            return {
-                success: true,
-                text: result.text,
-                model: result.model || 'Nanonets-OCR2-3B'
-            };
-        } catch (error) {
-            console.error('Nanonets OCR error:', error);
-            return {
-                success: false,
-                text: '',
-                error: error.message
-            };
+            elements.ocrStatusText.textContent='Okuma tamamlandı; vardiyaları kontrol edin.';
+            elements.ocrProgressBar.style.width='100%';elements.ocrPercent.textContent='';
+        }catch(error){
+            showAlert(controller.signal.aborted
+                ? 'Tarama beklemesi sonlandırıldı. Başlamış bir bulut isteği sağlayıcıda ücretlenmiş olabilir.'
+                : error.message,'warning');
+        }finally{
+            clearTimeout(timer);
+            if(localWorker){await localWorker.terminate().catch(()=>{});localWorker=null;}
+            scanController=null;fullButton.disabled=false;elements.scanCropBtn.disabled=false;cancelButton.hidden=true;
+            elements.ocrProgressContainer.classList.add('hidden');
         }
     }
-
-    // Tesseract.js fallback OCR
-    async function performTesseractOCR(blob) {
-        return new Promise(async (resolve, reject) => {
-            try {
-                const worker = await Tesseract.createWorker('eng', 1, {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            const p = Math.round(m.progress * 100);
-                            elements.ocrProgressBar.style.width = `${p}%`;
-                            elements.ocrPercent.innerText = `${p}%`;
-                            elements.ocrStatusText.innerText = `Tesseract: %${p}`;
-                        }
-                    }
-                });
-
-                const ret = await worker.recognize(blob);
-                await worker.terminate();
-
-                resolve({
-                    success: true,
-                    text: ret.data.text,
-                    confidence: ret.data.confidence,
-                    model: 'Tesseract.js'
-                });
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    if (elements.scanCropBtn) {
-        elements.scanCropBtn.addEventListener('click', async () => {
-            if (!cropper) {
-                showAlert('Önce bir görsel yükleyin!', 'warning');
-                return;
-            }
-
-            try {
-                const canvas = cropper.getCroppedCanvas({
-                    maxWidth: 2000,
-                    maxHeight: 2000,
-                    fillColor: '#fff'
-                });
-
-                if (!canvas) {
-                    showAlert('Görsel işlenemedi!', 'error');
-                    return;
-                }
-
-                // Progress göster
-                elements.ocrProgressContainer.classList.remove('hidden');
-                elements.ocrProgressBar.style.width = '0%';
-                elements.ocrPercent.innerText = '0%';
-                elements.ocrStatusText.innerText = 'Nanonets AI OCR...';
-                elements.shiftText.value = '';
-
-                // Canvas'ı base64'e çevir
-                const imageBase64 = canvas.toDataURL('image/png');
-
-                // Önce Nanonets OCR dene
-                console.log('Trying Nanonets-OCR2-3B...');
-                elements.ocrProgressBar.style.width = '20%';
-                elements.ocrPercent.innerText = '20%';
-
-                const nanonetsResult = await performNanonetsOCR(imageBase64);
-
-                if (nanonetsResult.success && nanonetsResult.text.trim().length > 0) {
-                    // Nanonets başarılı
-                    console.log('Nanonets OCR Success:', nanonetsResult.text);
-                    elements.ocrProgressBar.style.width = '100%';
-                    elements.ocrPercent.innerText = '100%';
-                    elements.ocrStatusText.innerText = 'Nanonets AI OCR tamamlandı!';
-
-                    const parsedShift = parseLineToShifts(nanonetsResult.text);
-                    elements.shiftText.value = parsedShift;
-
-                    toast.success(tr('ocrNanonetsDone', 'OCR completed with Nanonets AI!'));
-
-                    elements.shiftText.scrollIntoView({ behavior: 'smooth' });
-                    return;
-                }
-
-                // Nanonets başarısız, Tesseract.js fallback
-                console.log('Nanonets failed, falling back to Tesseract.js...');
-                console.log('Nanonets error:', nanonetsResult.error);
-                elements.ocrStatusText.innerText = 'Tesseract.js ile devam ediliyor...';
-                elements.ocrProgressBar.style.width = '30%';
-
-                // Canvas'ı blob'a çevir
-                canvas.toBlob(async (blob) => {
-                    if (!blob) {
-                        showAlert('Görsel dönüştürülemedi!', 'error');
-                        elements.ocrProgressContainer.classList.add('hidden');
-                        return;
-                    }
-
-                    try {
-                        const tesseractResult = await performTesseractOCR(blob);
-
-                        if (!tesseractResult.text || tesseractResult.text.trim().length === 0) {
-                            elements.shiftText.value = 'OCR hiçbir metin algılayamadı. Lütfen:\n- Görselin daha net olduğundan emin olun\n- Sadece vardiya saatlerini içeren alanı seçin\n- Manuel olarak girin';
-                            showAlert('Metin algılanamadı!', 'warning');
-                        } else {
-                            const parsedShift = parseLineToShifts(tesseractResult.text);
-                            elements.shiftText.value = parsedShift;
-
-                            if (tesseractResult.confidence < 60) {
-                                toast.warning(tr('ocrLowConfidence', 'Low confidence - please check and edit'));
-                            } else {
-                                toast.info(tr('ocrTesseractDone', 'OCR completed with Tesseract (fallback)'));
-                            }
-                        }
-
-                        elements.ocrStatusText.innerText = window.i18n?.t('completed') || 'Tamamlandı!';
-                        elements.ocrProgressBar.style.width = '100%';
-                        elements.ocrPercent.innerText = '100%';
-
-                        elements.shiftText.scrollIntoView({ behavior: 'smooth' });
-
-                    } catch (tesseractError) {
-                        console.error('Tesseract error:', tesseractError);
-                        showAlert('OCR işlemi başarısız oldu. Manuel giriş yapın.', 'error');
-                        elements.ocrProgressContainer.classList.add('hidden');
-                    }
-                }, 'image/png');
-
-            } catch (err) {
-                console.error("OCR Hatası:", err);
-                showAlert(window.i18n?.t('scanError') || "Tarama sırasında bir hata oluştu.", 'error');
-                elements.ocrProgressContainer.classList.add('hidden');
-            }
-        });
-    }
+    fullButton.addEventListener('click',()=>scan(false));
+    elements.scanCropBtn.addEventListener('click',()=>scan(true));
 
     // ============================================
     // METİN PARSE FONKSİYONLARI
     // ============================================
-
-    // HTML tablo formatını parse et (Nanonets bazen tablo döndürüyor)
-    function parseHTMLTable(htmlText) {
-        const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-        const results = [];
-
-        // Tüm <td> ve <th> içeriklerini çıkar
-        const cellRegex = /<t[dh][^>]*>([^<]*)<\/t[dh]>/gi;
-        let match;
-        const cellContents = [];
-
-        while ((match = cellRegex.exec(htmlText)) !== null) {
-            const content = match[1].trim();
-            if (content) {
-                cellContents.push(content);
-            }
-        }
-
-        console.log('Tablo hücre içerikleri:', cellContents);
-
-        // Saat aralığı ve OFF pattern'lerini bul
-        const timeRangeRegex = /^(\d{1,2})[:\.]?(\d{2})[-–—](\d{1,2})[:\.]?(\d{2})$/;
-        // YI=Yıllık İzin, HT=Hafta Tatili, RT=Resmi Tatil, Üİ/UI=Ücretsiz İzin
-        const offRegex = /^(OFF|0FF|OEF|İZİN|IZIN|BOŞ|BOS|TATİL|TATIL|RAPOR|RAPORLU|LEAVE|FREE|HOLIDAY|FREI|CONGÉ|YI|Yİ|YL|YILLIK|HT|HAFTA\s*TATİLİ?|RT|RESMİ?\s*TATİL|Üİ|ÜI|UI|ÜCRETSİZ)$/i;
-
-        for (const content of cellContents) {
-            // Saat aralığı mı?
-            const timeMatch = content.match(timeRangeRegex);
-            if (timeMatch) {
-                const h1 = timeMatch[1].padStart(2, '0');
-                const m1 = timeMatch[2];
-                const h2 = timeMatch[3].padStart(2, '0');
-                const m2 = timeMatch[4];
-                results.push(`${h1}:${m1} - ${h2}:${m2}`);
-                continue;
-            }
-
-            // OFF/İZİN mi?
-            if (offRegex.test(content)) {
-                results.push('OFF');
-                continue;
-            }
-        }
-
-        console.log('Tablo parse sonucu:', results);
-
-        if (results.length === 0) {
-            return `Vardiya formatı algılanamadı. Ham veri:\n\n${htmlText}`;
-        }
-
-        // Günleri oluştur
-        let result = '';
-        const count = Math.min(results.length, 7);
-        for (let i = 0; i < count; i++) {
-            result += `${days[i]} ${results[i]}\n`;
-        }
-
-        if (count < 7) {
-            result += `\n--- ${7 - count} gün eksik, lütfen tamamlayın ---`;
-        }
-
-        return result.trim();
-    }
 
     // Backend'in yerlestiremedigi hedefleri tek satirlik uyariya cevirir;
     // bos liste veya eksik alan -> null (uyari yok).
@@ -667,26 +537,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return template.replace('{list}', list);
     }
 
-    function parseLineToShifts(ocrText) {
-        console.log('OCR Ham Metin:', ocrText);
-
-        // HTML tablo formatını kontrol et ve parse et
-        if (ocrText.includes('<table') || ocrText.includes('<td>') || ocrText.includes('<th>')) {
-            console.log('HTML tablo formatı algılandı, parse ediliyor...');
-            return parseHTMLTable(ocrText);
-        }
-
-        // Duz metin: gun adina capali ayristirma (static/js/ocrparse.js).
-        // OCR bir gunu kacirirsa haftanin kalani artik kaymaz.
-        const parsed = window.ShiftScanOcr ? window.ShiftScanOcr.parseShiftText(ocrText) : null;
-        if (parsed === null) {
-            // Hiçbir şey bulunamadı, ham metni döndür
-            return `Vardiya formatı algılanamadı. Lütfen manuel düzenleyin:\n\n${ocrText}`;
-        }
-        return parsed;
-    }
-
     function parseText(text, baseDate) {
+        if (text.includes('?')) throw new Error('Belirsiz günleri tamamlayın; izin günlerini OFF olarak belirtin.');
         const lines = text.split('\n');
         const events = [];
         
@@ -721,6 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         let endH = parseInt(timeMatch[3]);
                         let endM = timeMatch[4] ? parseInt(timeMatch[4]) : 0;
 
+                        if (startH > 23 || endH > 23 || startM > 59 || endM > 59 || (startH === endH && startM === endM)) throw new Error('Vardiya saatlerini kontrol edin.');
                         let endDate = new Date(eventDate);
                         if (endH < startH || (endH === startH && endM < startM)) {
                             endDate.setDate(endDate.getDate() + 1);
@@ -743,6 +596,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
+        const ordered = [...events].sort((a,b)=>a.start-b.start);
+        for(let i=1;i<ordered.length;i++){
+            if(ordered[i].start<ordered[i-1].end)throw new Error('Vardiya saatleri çakışıyor.');
+        }
         return events;
     }
 
@@ -824,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (elements.convertBtn) {
         elements.convertBtn.addEventListener('click', () => {
             try {
+                if(window.ShiftScanReview.hasPending() || scanController) throw new Error('Önce görseldeki vardiyaların incelemesini tamamlayın.');
                 const startDateVal = elements.startDateInput.value;
                 const text = elements.shiftText.value;
                 
@@ -843,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderPreview(parsedEvents);
             } catch (err) {
                 console.error("Dönüştürme hatası:", err);
-                showAlert(window.i18n?.t('convertError') || "Dönüştürme sırasında bir hata oluştu. Lütfen formatı kontrol edin.", 'error');
+                showAlert(err.message || 'Vardiya bilgilerini kontrol edin.', 'error');
             }
         });
     }
@@ -1144,7 +1002,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // AI ile Plan Oluştur (Gelişmiş Mod)
     if (elements.generatePlanBtn) {
         elements.generatePlanBtn.addEventListener('click', async () => {
+            if(elements.generatePlanBtn.disabled)return;
+            elements.generatePlanBtn.disabled=true;
+            const planOwner=window.ShiftScanAccounts.getUser()?.id;
+            planController=new AbortController();
+            const planTimer=setTimeout(()=>planController?.abort(),60000);
             try {
+                if(window.ShiftScanReview.hasPending() || scanController) throw new Error('Önce görseldeki vardiyaların incelemesini tamamlayın.');
                 const startDateVal = elements.startDateInput.value;
                 const shiftTextVal = elements.shiftText.value;
                 
@@ -1174,6 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Backend'e gönderilecek veri
                 const planData = {
+                    connection_id: document.getElementById('planConnection').value || null,
                     start_date: startDateVal,
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                     shift_events: shiftEvents.map((ev) => ({
@@ -1187,35 +1052,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
-                console.log('Plan verileri:', planData);
 
                 // Loading göster
                 showLoading(window.i18n?.t('aiPlanCreating') || 'AI plan oluşturuyor...');
 
                 // Backend'e POST isteği
-                const response = await fetch('/generate-plan', {
+                const result = await window.ShiftScanAccounts.api('/generate-plan', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(planData)
+                    body: JSON.stringify(planData),
+                    signal: planController.signal
                 });
+                if(planOwner!==window.ShiftScanAccounts.getUser()?.id)throw new Error('Oturum değişti; plan kullanılmadı.');
+                if(result.fallback_reason)showAlert('Seçili sağlayıcı plan üretemedi. Ücretsiz kural tabanlı plan kullanıldı.','warning');
 
-                if (!response.ok) {
-                    // Ham durum kodu tek başına çıkmaz yol: 422 hangi alanın
-                    // reddedildiğini, 400 hangi saat diliminin tanınmadığını
-                    // yalnızca gövdedeki `detail` söylüyor (bkz. /ocr).
-                    // FastAPI doğrulama hatalarında `detail` bir liste gelir;
-                    // düz string'e zorlanırsa "[object Object]" görünür.
-                    const errorData = await response.json().catch(() => ({}));
-                    const detail = errorData.detail;
-                    const message = Array.isArray(detail)
-                        ? detail.map((d) => d && d.msg).filter(Boolean).join('; ')
-                        : detail;
-                    throw new Error(message || `HTTP ${response.status}`);
-                }
-
-                const result = await response.json();
-                console.log('Backend yanıtı:', result);
-                
                 hideLoading();
                 
                 if (result.status === 'success' && result.ics_content) {
@@ -1233,6 +1082,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Plan oluşturma hatası:', error);
                 hideLoading();
                 showAlert('Plan oluşturulurken bir hata oluştu: ' + error.message, 'error');
+            } finally {
+                clearTimeout(planTimer);planController=null;
+                elements.generatePlanBtn.disabled=false;
             }
         });
     }

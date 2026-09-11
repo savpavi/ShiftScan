@@ -16,7 +16,7 @@ Convert your shift schedule photo to an ICS calendar file in seconds.
 
 ## Installation
 
-1. Python 3.8+ required
+1. Python 3.10+ required
 
 2. Install dependencies:
 ```bash
@@ -111,3 +111,23 @@ Both suites run on every push and pull request via GitHub Actions
 ## License
 
 MIT License
+
+
+## Multi-user provider connections and full-image review
+
+See [the Turkish setup guide](README_TR.md#kullanıcı-hesapları-ve-çoklu-sağlayıcı-11-eylül-2026)
+for the new account and OCR flow. Configure `SHIFTSCAN_DB_PATH` on a persistent,
+private volume and `SHIFTSCAN_ENCRYPTION_KEY` using `.env.example`. Missing settings
+disable account routes while manual/local use remains available. Keep Secure cookies
+enabled on HTTPS and configure only trusted reverse proxies for correct Origin checks.
+
+Users can store multiple encrypted Gemini, OpenAI, Anthropic or OpenRouter API keys,
+select separate OCR/planning connections, and review person/day/time extraction before
+export. Local OCR shows raw text for manual day assignment. No paid provider is selected
+implicitly; no cross-account or paid failover occurs. The shared Google demo key requires
+`SHIFTSCAN_DEMO_AI=true`; legacy remote OCR is disabled unless explicitly opted in.
+
+Subscription OAuth is **not enabled**: provider-specific support for third-party web
+applications still needs verification/approval. API-key usage does not use subscription
+quotas. The current Render free Blueprint does not provision persistent account storage.
+Do not enable registrations on ephemeral storage. No password recovery is provided yet.

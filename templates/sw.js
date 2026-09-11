@@ -28,6 +28,8 @@ const STATIC_ASSETS = [
     '/static/js/activities.js',
     '/static/js/ocrparse.js',
     '/static/js/app.js',
+    '/static/js/accounts.js',
+    '/static/js/schedule-review.js',
     '/static/manifest.json',
     '/static/icons/icon.svg'
 ].map((path) => (path === '/' ? path : `${path}?v=${VERSION}`));
@@ -71,8 +73,8 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(request.url);
 
-    if (url.pathname.startsWith('/api') || url.pathname === '/health') {
-        event.respondWith(networkFirst(request));
+    if (url.pathname.startsWith('/api') || url.pathname === '/health' || url.pathname.startsWith('/ocr')) {
+        event.respondWith(fetch(request, {cache: 'no-store'}));
         return;
     }
 

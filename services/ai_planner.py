@@ -43,6 +43,7 @@ MAX_ACTIVITY_HOURS = 24
 # 15 dakika) hic aktivite yazilmaz.
 MAX_BLOCK_HOURS = 2.0
 MIN_BLOCK_HOURS = 0.5
+MIN_PLACEMENT_HOURS = timedelta.resolution.total_seconds() / 3600
 
 
 class ActivityPlanItem(BaseModel):
@@ -309,7 +310,11 @@ def _take_from_intervals(
         if available < min_hours or available <= 0:
             continue
         hours = min(hours_wanted, available, max_hours)
+        if hours < MIN_PLACEMENT_HOURS:
+            continue
         placed_end = cursor + timedelta(hours=hours)
+        if placed_end <= cursor:
+            continue
         remainder = []
         if cursor > free_start:
             remainder.append((free_start, cursor))
@@ -386,7 +391,17 @@ def place_activity_plan(
 
         activity_name = goal.name
         day = plan_item.day_index
-        remaining_hours = plan_item.hours
+        if goal.unit == "days":
+            if day in placed_days[goal.id] or len(placed_days[goal.id]) >= goal.amount:
+                continue
+            remaining_hours = DEFAULT_SESSION_HOURS
+            min_hours = DEFAULT_SESSION_HOURS
+            max_hours = DEFAULT_SESSION_HOURS
+        else:
+            target_remaining = max(0.0, goal.amount - placed_hours[goal.id])
+            remaining_hours = min(plan_item.hours, target_remaining)
+            min_hours = 0.0
+            max_hours = MAX_BLOCK_HOURS
 
         # O gün için uygun slotları bul
         day_slots = [slot for slot in available_slots if slot['day_index'] == day]
@@ -400,16 +415,21 @@ def place_activity_plan(
                 while remaining_hours > 0:
                     placed = _take_from_intervals(
                         slot['free'], slot['start'], goal.preferred, clamp,
-                        remaining_hours, 0.0, remaining_hours,
+                        remaining_hours, min_hours, max_hours,
                     )
                     if placed is None:
                         break
                     activity_start, activity_end = placed
                     hours_to_place = (activity_end - activity_start).total_seconds() / 3600
+                    if hours_to_place <= 0:
+                        break
                     activity_events.append((activity_start, activity_end, activity_name))
                     remaining_hours -= hours_to_place
                     placed_hours[goal.id] += hours_to_place
                     placed_days[goal.id].add(day)
+                    if goal.unit == "days":
+                        remaining_hours = 0
+                        break
 
     # Eksik, modelin istegine degil kullanicinin hedefine gore olculur:
     # model 4 saatlik hedefe 1 saat planlamissa 3 saat eksiktir.
