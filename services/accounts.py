@@ -151,7 +151,7 @@ class AccountStore:
 
     @staticmethod
     def _metadata(row):
-        return {key: row[key] for key in ('id', 'provider', 'label', 'model', 'created_at')} | {'auth_type': 'api_key'}
+        return {key: row[key] for key in ('id', 'provider', 'label', 'model', 'created_at')} | {'auth_type': 'oauth' if row['provider'] == 'chatgpt' else 'api_key'}
 
     def list_connections(self, user_id):
         with self._db() as db:
@@ -160,10 +160,16 @@ class AccountStore:
         return [self._metadata(row) for row in rows]
 
     def add_connection(self, user_id, provider, label, model, api_key):
-        if (provider not in {'openai', 'gemini', 'anthropic', 'openrouter'}
+        return self._add_connection(user_id, provider, label, model, api_key)
+
+    def add_chatgpt(self, user_id, label, model, auth_json):
+        return self._add_connection(user_id, 'chatgpt', label, model, auth_json, subscription=True)
+
+    def _add_connection(self, user_id, provider, label, model, api_key, subscription=False):
+        if (provider not in ({'chatgpt'} if subscription else {'openai', 'gemini', 'anthropic', 'openrouter'})
                 or not isinstance(label, str) or not 1 <= len(label.strip()) <= 80
                 or not isinstance(model, str) or not 1 <= len(model.strip()) <= 120
-                or not isinstance(api_key, str) or not 1 <= len(api_key.strip()) <= 4096):
+                or not isinstance(api_key, str) or not 1 <= len(api_key.strip()) <= (65536 if subscription else 4096)):
             raise HTTPException(422, 'Geçersiz bağlantı bilgileri.')
         connection_id = str(uuid.uuid4())
         secret = self._fernet.encrypt(json.dumps({'owner': user_id, 'id': connection_id, 'api_key': api_key.strip()}).encode())
@@ -176,7 +182,7 @@ class AccountStore:
             db.execute('INSERT INTO connections VALUES (?,?,?,?,?,?,?)',
                        (connection_id, user_id, provider, label.strip(), model.strip(), secret, now))
         return {'id': connection_id, 'provider': provider, 'label': label.strip(),
-                'model': model.strip(), 'created_at': now, 'auth_type': 'api_key'}
+                'model': model.strip(), 'created_at': now, 'auth_type': 'oauth' if subscription else 'api_key'}
 
     def get_connection(self, user_id, connection_id):
         with self._db() as db:
@@ -190,7 +196,15 @@ class AccountStore:
             key = payload['api_key']
         except (InvalidToken, ValueError, KeyError, TypeError):
             raise HTTPException(503, 'Bağlantı anahtarı okunamadı; yapılandırmayı kontrol edin.') from None
-        return self._metadata(row) | {'api_key': key}
+        return self._metadata(row) | {'api_key': key, 'owner_id': user_id}
+
+    def update_chatgpt_secret(self, user_id, connection_id, auth_json):
+        if not isinstance(auth_json, str) or not 1 <= len(auth_json) <= 65536:
+            raise ValueError('Invalid credential size')
+        secret = self._fernet.encrypt(json.dumps({'owner': user_id, 'id': connection_id, 'api_key': auth_json}).encode())
+        with self._db() as db:
+            return bool(db.execute("UPDATE connections SET encrypted_secret=? WHERE user_id=? AND id=? AND provider='chatgpt'",
+                                   (secret, user_id, connection_id)).rowcount)
 
     def delete_connection(self, user_id, connection_id):
         with self._db() as db:

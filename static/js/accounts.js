@@ -22,7 +22,7 @@
             const old=select.value;select.replaceChildren();
             const local=document.createElement('option');local.value='';
             local.textContent=id==='ocrConnection'?'Cihazda OCR · ücretsiz':'Kural tabanlı · ücretsiz';select.append(local);
-            connections.forEach(c=>{
+            connections.filter(c=>id!=='ocrConnection' || c.provider!=='chatgpt').forEach(c=>{
                 const opt=document.createElement('option');opt.value=c.id;opt.textContent=`${c.label} · ${c.provider} / ${c.model}`;select.append(opt);
             });
             if(connections.some(c=>c.id===old)) select.value=old;
@@ -72,6 +72,7 @@
             });
         });
         document.getElementById('logoutBtn').addEventListener('click',event=>run(event.currentTarget,async()=>{
+            await window.ShiftScanChatGPT?.cancel();
             await api('/api/auth/logout',{method:'POST'});session={user:null,csrf_token:null,configured:true};connections=[];
             document.getElementById('connectionForm').reset();window.ShiftScanReview?.reset();window.dispatchEvent(new Event('shiftscan:logout'));await refresh();setMessage('Çıkış yapıldı.');
         }));
@@ -85,6 +86,7 @@
         });
         try{
             const metadata=await api('/api/providers');
+            document.getElementById('chatgptConnect').hidden=!metadata.chatgpt_enabled;
             const select=document.getElementById('connectionProvider');
             metadata.providers.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.label;select.append(o);});
             await refresh();

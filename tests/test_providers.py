@@ -191,6 +191,7 @@ def test_provider_metadata_marks_subscription_adapters_unavailable(monkeypatch):
     response = client.get("/api/providers")
     assert response.status_code == 200
     assert response.json() == {
+        "chatgpt_enabled": False,
         "providers": [
             {"id": "gemini", "label": "Google Gemini", "auth_types": ["api_key"], "vision": True},
             {"id": "openai", "label": "OpenAI", "auth_types": ["api_key"], "vision": True},

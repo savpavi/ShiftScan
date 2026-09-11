@@ -138,6 +138,11 @@ async def _fetch_json(provider: str, url: str, headers: dict, params: dict | Non
 
 
 async def generate_json(connection: dict, prompt: str, image: dict | None = None) -> dict | list:
+    if connection.get('provider') == 'chatgpt':
+        if image is not None:
+            raise ProviderError('invalid_request', 'ChatGPT abonelik bağlantısında OCR henüz etkin değil.', 400)
+        from services.chatgpt import generate
+        return await generate(connection, prompt)
     provider = connection.get("provider", "")
     url, headers, params, body = _request(
         provider, connection.get("model", ""), connection.get("api_key", ""), prompt, image

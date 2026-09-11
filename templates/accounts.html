@@ -10,6 +10,22 @@
   </form>
   <div id="signedIn" hidden>
     <button type="button" id="logoutBtn" class="btn btn-secondary">Çıkış yap</button>
+    <section id="chatgptConnect" hidden>
+      <h3>ChatGPT aboneliği</h3>
+      <label class="form-label" for="chatgptLabel">Hesap adı</label>
+      <input id="chatgptLabel" class="input" maxlength="80" value="ChatGPT hesabım" />
+      <button id="chatgptLoginBtn" type="button" class="btn btn-primary">ChatGPT ile bağlan</button>
+      <p class="form-hint">OpenAI sayfasında giriş yapıp kodu onayla. ChatGPT hesabında cihaz koduyla giriş iznini açman gerekebilir. Bu bağlantı şimdilik planlama içindir.</p>
+      <div id="chatgptLoginPanel" hidden>
+        <a id="chatgptVerification" target="_blank" rel="noopener noreferrer">OpenAI giriş sayfasını aç</a>
+        <p>Tek kullanımlık kod: <strong id="chatgptCode"></strong></p>
+        <p id="chatgptStatus" role="status" aria-live="polite"></p>
+        <label for="chatgptModel">Planlama modeli</label>
+        <select id="chatgptModel" class="input" disabled></select>
+        <button id="chatgptFinishBtn" type="button" class="btn btn-primary" disabled>Bağlantıyı kaydet</button>
+        <button id="chatgptCancelBtn" type="button" class="btn btn-secondary">İptal</button>
+      </div>
+    </section>
     <ul id="connectionList" class="connection-list"></ul>
     <form id="connectionForm" class="account-grid">
       <label class="form-label">Sağlayıcı<select name="provider" id="connectionProvider" class="input" required></select></label>
@@ -20,5 +36,5 @@
     </form>
     <p class="form-hint">Anahtarlar sunucuda şifrelenerek saklanır. Modelin görsel desteklemesi OCR için gereklidir. Anahtarın geçerliliği ilk istekte anlaşılır; eklemek ücretli istek göndermez.</p>
   </div>
-  <details class="subscription-status"><summary>Abonelikle giriş durumu</summary><p class="form-hint">ChatGPT, Claude ve Gemini aboneliklerini bu web sitesine bağlama henüz etkin değil. Sağlayıcıya uygun giriş akışı doğrulandığında burada açılacak; API anahtarı abonelik kotası kullanmaz.</p></details>
+  <details class="subscription-status"><summary>Abonelikle giriş durumu</summary><p class="form-hint">ChatGPT bağlantısı desteklenen sunucularda giriş yaptıktan sonra açılır. Claude ve Gemini abonelik bağlantıları henüz etkin değil. API anahtarı abonelik kotası kullanmaz.</p></details>
 </details>
