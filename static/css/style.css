@@ -1067,7 +1067,7 @@ body {
    DİJİTAL ACENTELİK
    ============================================ */
 
-.dijital-acentelik-card {
+.shift-reminder-card {
   margin-top: 16px;
   padding: 20px;
   background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%);
@@ -1076,45 +1076,45 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-.dijital-header {
+.reminder-header {
   display: flex;
   align-items: center;
   gap: 16px;
   cursor: pointer;
 }
 
-.dijital-info {
+.reminder-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.dijital-title {
+.reminder-title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text);
 }
 
-.dijital-desc {
+.reminder-desc {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
 
 /* Toggle Switch (iOS Style) */
-.dijital-toggle {
+.reminder-toggle {
   position: relative;
   width: 52px;
   height: 28px;
   flex-shrink: 0;
 }
 
-.dijital-toggle input {
+.reminder-toggle input {
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.dijital-slider {
+.reminder-slider {
   position: absolute;
   cursor: pointer;
   top: 0;
@@ -1126,7 +1126,7 @@ body {
   border-radius: 28px;
 }
 
-.dijital-slider:before {
+.reminder-slider:before {
   position: absolute;
   content: "";
   height: 22px;
@@ -1139,16 +1139,16 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-.dijital-toggle input:checked + .dijital-slider {
+.reminder-toggle input:checked + .reminder-slider {
   background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
 }
 
-.dijital-toggle input:checked + .dijital-slider:before {
+.reminder-toggle input:checked + .reminder-slider:before {
   transform: translateX(24px);
 }
 
 /* Days Container */
-.dijital-days-container {
+.reminder-days-container {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -1166,14 +1166,14 @@ body {
   }
 }
 
-.dijital-days-label {
+.reminder-days-label {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 12px;
   font-weight: 500;
 }
 
-.dijital-days-grid {
+.reminder-days-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1219,11 +1219,11 @@ body {
 }
 
 /* Dark mode */
-[data-theme="dark"] .dijital-acentelik-card {
+[data-theme="dark"] .shift-reminder-card {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, var(--bg-card) 100%);
 }
 
-[data-theme="dark"] .dijital-slider {
+[data-theme="dark"] .reminder-slider {
   background-color: #374151;
 }
 

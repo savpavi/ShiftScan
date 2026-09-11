@@ -86,8 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
         closeQRModal: document.getElementById('closeQRModal'),
         copyLinkBtn: document.getElementById('copyLinkBtn'),
         
-        // Dijital Acentelik
-        dijitalAcentelik: document.getElementById('dijitalAcentelik')
+        // Vardiya sonu hatırlatması
+        shiftReminder: document.getElementById('shiftReminder')
     };
 
     window.addEventListener('shiftscan:logout',()=>{
@@ -266,15 +266,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Dijital Acentelik checkbox - gün seçicileri göster/gizle
-    if (elements.dijitalAcentelik) {
-        const dijitalDaysContainer = document.getElementById('dijitalDaysContainer');
-        elements.dijitalAcentelik.addEventListener('change', () => {
-            if (dijitalDaysContainer) {
-                if (elements.dijitalAcentelik.checked) {
-                    dijitalDaysContainer.classList.remove('hidden');
+    // Vardiya sonu hatırlatması checkbox - gün seçicileri göster/gizle
+    if (elements.shiftReminder) {
+        const reminderDaysContainer = document.getElementById('reminderDaysContainer');
+        elements.shiftReminder.addEventListener('change', () => {
+            if (reminderDaysContainer) {
+                if (elements.shiftReminder.checked) {
+                    reminderDaysContainer.classList.remove('hidden');
                 } else {
-                    dijitalDaysContainer.classList.add('hidden');
+                    reminderDaysContainer.classList.add('hidden');
                 }
             }
         });
@@ -731,23 +731,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            // Dijital Acentelik etkinlikleri ekle (checkbox işaretliyse)
-            if (elements.dijitalAcentelik && elements.dijitalAcentelik.checked) {
+            // Vardiya sonu hatırlatması etkinlikleri ekle (checkbox işaretliyse)
+            if (elements.advancedModeToggle?.checked && elements.shiftReminder?.checked) {
                 // Seçili günleri al (0=Pzt, 1=Sal, ... 6=Paz)
                 const selectedDays = [];
-                document.querySelectorAll('.dijital-day:checked').forEach(cb => {
+                document.querySelectorAll('.reminder-day:checked').forEach(cb => {
                     selectedDays.push(parseInt(cb.dataset.day));
                 });
                 
-                console.log('Dijital Acentelik seçili günler:', selectedDays);
-                
-                // En az bir gün seçilmediyse uyar
-                if (selectedDays.length === 0) {
-                    showAlert('Dijital Acentelik için en az bir gün seçin!', 'warning');
+                const reminderTitle = document.getElementById('shiftReminderTitle').value.trim();
+                if (!reminderTitle) {
+                    showAlert('Hatırlatma için bir başlık yazın.', 'warning');
                     return;
                 }
                 
-                const acentelikEvents = [];
+                // En az bir gün seçilmediyse uyar
+                if (selectedDays.length === 0) {
+                    showAlert('Vardiya sonu hatırlatması için en az bir gün seçin!', 'warning');
+                    return;
+                }
+                
+                const reminderEvents = [];
                 allEvents.forEach(ev => {
                     // OFF günlerini atla (title içinde OFF var mı kontrolü)
                     if (ev.title && ev.title.toUpperCase().includes('OFF')) return;
@@ -763,31 +767,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!selectedDays.includes(ourDay)) return;
                     
                     // Bitiş saatinden 1 saat önce başla
-                    const acentelikStart = new Date(ev.end.getTime() - (1 * 60 * 60 * 1000)); // 1 saat önce
-                    const acentelikEnd = new Date(ev.end.getTime()); // Vardiya bitimiyle aynı
+                    const reminderStart = new Date(Math.max(ev.start.getTime(), ev.end.getTime() - (1 * 60 * 60 * 1000))); // 1 saat önce
+                    const reminderEnd = new Date(ev.end.getTime()); // Vardiya bitimiyle aynı
                     
-                    acentelikEvents.push({
-                        title: '📞 Dijital Acentelik',
-                        start: acentelikStart,
-                        end: acentelikEnd,
-                        originalLine: 'Dijital Acentelik görevi'
+                    reminderEvents.push({
+                        title: reminderTitle,
+                        start: reminderStart,
+                        end: reminderEnd,
+                        originalLine: ''
                     });
                 });
-                
-                console.log('Oluşturulan Dijital Acentelik etkinlikleri:', acentelikEvents.length);
-                
-                // Acentelik etkinliklerini ekle
-                allEvents = allEvents.concat(acentelikEvents);
+
+                // Hatırlatma etkinliklerini ekle
+                allEvents = allEvents.concat(reminderEvents);
             }
             
             downloadICS(allEvents);
             
             // Bildirim
-            const dijitalMsg = elements.dijitalAcentelik?.checked ? ' + Dijital Acentelik' : '';
+            const reminderMsg = elements.advancedModeToggle?.checked && elements.shiftReminder?.checked ? ' + hatırlatma' : '';
             if (repeatWeeks > 1) {
-                toast.success(tr('icsDownloadedWeeks', `ICS file downloaded with ${repeatWeeks} weeks${dijitalMsg}!`, { weeks: repeatWeeks, extra: dijitalMsg }));
+                toast.success(tr('icsDownloadedWeeks', `ICS file downloaded with ${repeatWeeks} weeks${reminderMsg}!`, { weeks: repeatWeeks, extra: reminderMsg }));
             } else {
-                toast.success(tr('icsDownloaded', `ICS file downloaded${dijitalMsg}!`, { extra: dijitalMsg }));
+                toast.success(tr('icsDownloaded', `ICS file downloaded${reminderMsg}!`, { extra: reminderMsg }));
             }
         });
     }
