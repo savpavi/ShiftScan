@@ -70,3 +70,7 @@ htmlcov/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Self-hosting example: runtime data and secrets
+deploy/data/
+deploy/shiftscan.env

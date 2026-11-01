@@ -97,12 +97,34 @@ When the AI planner is enabled, your free-time summary and activity goals are se
 to Google Gemini. The image is never sent to Gemini. Without `GOOGLE_API_KEY` the
 app falls back to a rule-based planner and stays fully functional.
 
+## Self-hosting
+
+Production ([vardiya.egebostanci.me](https://vardiya.egebostanci.me)) runs on a single
+home server: Docker Compose plus a Cloudflare Tunnel, with no inbound ports opened.
+Accounts and encrypted provider keys live in SQLite, so the app needs **one host with a
+persistent disk**; stateless/free PaaS instances that wipe the filesystem on restart
+are not suitable.
+
+1. `cp .env.example deploy/shiftscan.env` and set `SHIFTSCAN_ENCRYPTION_KEY`
+   (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`).
+   Back the key up separately: without it, stored connections cannot be decrypted.
+2. `mkdir -p deploy/data && sudo chown 1000:1000 deploy/data`
+3. `docker compose -f deploy/docker-compose.yml up -d --build`
+4. Publish `127.0.0.1:8010` over HTTPS, e.g. a Cloudflare Tunnel ingress rule
+   `hostname: your.domain -> service: http://127.0.0.1:8010`, or a reverse proxy
+   (Caddy/nginx). The proxy must pass `X-Forwarded-Proto`/`X-Forwarded-For`; login
+   routes compare `Origin` with the app origin and rate limits use the client IP.
+5. Back up the database with SQLite's online backup (`sqlite3 shiftscan.sqlite3 ".backup copy.sqlite3"`
+   or Python `sqlite3.Connection.backup`), not by copying the live file.
+
+Health check: `GET /health`.
+
 ## Running Tests
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (102 tests)
-node --test tests/js/*.test.js  # browser tests (41 tests)
+pytest                        # backend
+node --test tests/js/*.test.js  # browser tests
 ```
 
 Both suites run on every push and pull request via GitHub Actions
@@ -129,5 +151,4 @@ implicitly; no cross-account or paid failover occurs. The shared Google demo key
 
 Subscription OAuth is **not enabled**: provider-specific support for third-party web
 applications still needs verification/approval. API-key usage does not use subscription
-quotas. The current Render free Blueprint does not provision persistent account storage.
-Do not enable registrations on ephemeral storage. No password recovery is provided yet.
+quotas. Do not enable registrations on ephemeral storage (see [Self-hosting](#self-hosting)). No password recovery is provided yet.
