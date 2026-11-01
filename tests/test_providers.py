@@ -97,6 +97,7 @@ def test_generate_json_sends_provider_native_base64_image(monkeypatch, provider)
         (503, None, "unavailable", 503),
         (400, None, "invalid_request", 400),
         (404, None, "model_not_found", 400),
+        (402, None, "billing", 402),
         (None, httpx.ReadTimeout("late"), "timeout", 504),
     ],
 )
@@ -304,7 +305,7 @@ def test_openai_and_openrouter_model_lists_filter_non_chat(monkeypatch):
 
 
 @pytest.mark.parametrize(("status", "code"), [(400, "authentication"), (401, "authentication"),
-                                              (403, "authentication"), (429, "rate_limit"), (500, "unavailable")])
+                                              (403, "authentication"), (402, "billing"), (429, "rate_limit"), (500, "unavailable")])
 def test_model_list_failures_are_sanitized(monkeypatch, status, code):
     from services.providers import ProviderError
 

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+logger = logging.getLogger("shiftscan.providers")
 
 
 MAX_RESPONSE_BYTES = 1_048_576
@@ -165,6 +168,8 @@ async def list_models(provider: str, api_key: str) -> list[dict]:
         raise ProviderError("unavailable", "Sağlayıcıya şu anda ulaşılamıyor.", 503) from None
     if response.status_code in {400, 401, 403}:
         raise ProviderError("authentication", "Sağlayıcı API anahtarını kabul etmedi.", 401)
+    if response.status_code == 402:
+        raise ProviderError("billing", "Sağlayıcı hesabında kredi veya kota bitmiş. Sağlayıcının faturalandırma sayfasından bakiyeni kontrol et.", 402)
     if response.status_code == 429:
         raise ProviderError("rate_limit", "Sağlayıcı istek sınırına ulaştı.", 429)
     if response.status_code >= 400 or len(response.content) > 8 * MAX_RESPONSE_BYTES:
@@ -202,11 +207,30 @@ def _parse_json(text: str) -> dict | list:
     return result
 
 
+async def _log_upstream_error(provider: str, response) -> None:
+    """Sağlayıcının hata özetini sunucu loguna yaz (istemciye gitmez). Anahtar header'da, gövdede değil."""
+    try:
+        raw = (await response.aread())[:4000].decode("utf-8", "replace")
+        try:
+            err = json.loads(raw).get("error", raw)
+        except (ValueError, AttributeError):
+            err = raw
+        if isinstance(err, dict):
+            err = f"{err.get('status') or err.get('type') or ''} {err.get('message', '')}".strip()
+        logger.warning("provider=%s upstream_status=%s error=%s", provider, response.status_code, str(err)[:500])
+    except Exception:  # loglama asla isteği bozmasın
+        logger.warning("provider=%s upstream_status=%s (gövde okunamadı)", provider, response.status_code)
+
+
 async def _fetch_json(provider: str, url: str, headers: dict, params: dict | None, body: dict) -> dict | list:
     async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, follow_redirects=False) as client:
         async with client.stream("POST", url, headers=headers, params=params, json=body) as response:
+            if response.status_code >= 400:
+                await _log_upstream_error(provider, response)
             if response.status_code in {401, 403}:
                 raise ProviderError("authentication", "Sağlayıcı kimlik doğrulamasını reddetti.", 401)
+            if response.status_code == 402:
+                raise ProviderError("billing", "Sağlayıcı hesabında kredi veya kota bitmiş. Sağlayıcının faturalandırma sayfasından bakiyeni kontrol et.", 402)
             if response.status_code == 429:
                 raise ProviderError("rate_limit", "Sağlayıcı istek sınırına ulaştı.", 429)
             if response.status_code == 404:
