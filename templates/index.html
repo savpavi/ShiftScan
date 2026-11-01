@@ -80,6 +80,8 @@
         </p>
       </header>
 
+      {% include "accounts.html" %}
+
       <!-- Ana Form Kartı -->
       <main class="card">
         <!-- Adım 1: Tarih Seçimi -->
@@ -109,55 +111,7 @@
             </div>
           </div>
           
-          <!-- Dijital Acentelik Seçeneği -->
-          <div class="dijital-acentelik-card">
-            <!-- Ana Başlık ve Toggle -->
-            <label class="dijital-header">
-              <div class="dijital-toggle">
-                <input type="checkbox" id="dijitalAcentelik" />
-                <span class="dijital-slider"></span>
-              </div>
-              <div class="dijital-info">
-                <span class="dijital-title">📞 Dijital Acentelik</span>
-                <span class="dijital-desc">Vardiya bitiminden 1 saat önce hatırlatma</span>
-              </div>
-            </label>
-            
-            <!-- Gün Seçicileri -->
-            <div id="dijitalDaysContainer" class="dijital-days-container hidden">
-              <p class="dijital-days-label">Hangi günlerde görevin var?</p>
-              <div class="dijital-days-grid">
-                <label class="day-pill">
-                  <input type="checkbox" class="dijital-day" data-day="0" />
-                  <span>Pzt</span>
-                </label>
-                <label class="day-pill">
-                  <input type="checkbox" class="dijital-day" data-day="1" />
-                  <span>Sal</span>
-                </label>
-                <label class="day-pill">
-                  <input type="checkbox" class="dijital-day" data-day="2" />
-                  <span>Çar</span>
-                </label>
-                <label class="day-pill">
-                  <input type="checkbox" class="dijital-day" data-day="3" />
-                  <span>Per</span>
-                </label>
-                <label class="day-pill">
-                  <input type="checkbox" class="dijital-day" data-day="4" />
-                  <span>Cum</span>
-                </label>
-                <label class="day-pill">
-                  <input type="checkbox" class="dijital-day" data-day="5" />
-                  <span>Cmt</span>
-                </label>
-                <label class="day-pill">
-                  <input type="checkbox" class="dijital-day" data-day="6" />
-                  <span>Paz</span>
-                </label>
-              </div>
-            </div>
-          </div>
+
         </section>
 
         <!-- Adım 2: Vardiya Girişi -->
@@ -174,6 +128,11 @@
             </div>
           </div>
 
+          <div class="form-group">
+            <label class="form-label" for="ocrConnection">Görseli okuyacak bağlantı</label>
+            <select id="ocrConnection" class="input"><option value="">Cihazda OCR · ücretsiz</option></select>
+            <p id="ocrPrivacy" class="form-hint">Görsel cihazında işlenir. Çok kişili tabloda kendi satırını kırpman daha iyi sonuç verir.</p>
+          </div>
           <!-- Görsel Yükleme -->
           <div class="upload-wrapper" style="margin-bottom: 16px">
             <input
@@ -226,6 +185,9 @@
                 style="max-width: 100%; display: block"
               />
             </div>
+            <button id="scanFullBtn" class="btn btn-primary btn-block" type="button" style="margin-top:12px">Tam görseli tara</button>
+            <button id="cancelScanBtn" class="btn btn-secondary" type="button" hidden>Taramayı iptal et</button>
+            <p class="form-hint">Tam görsel birden fazla çalışanın bilgilerini içerebilir. Yalnız kendi satırını göndermek için alanı seçip kırpılmış taramayı kullan.</p>
             <button
               id="scanCropBtn"
               class="btn btn-primary btn-block"
@@ -268,6 +230,8 @@
               ></div>
             </div>
           </div>
+
+          <section id="scheduleReview" class="schedule-review" hidden aria-label="Vardiya incelemesi"></section>
 
           <!-- Metin Alanı -->
           <textarea
@@ -313,6 +277,59 @@ Pazar 10:00 - 18:00"
             margin-bottom: 20px;
           "
         >
+          <!-- Vardiya sonu hatırlatması -->
+          <div class="shift-reminder-card">
+            <!-- Ana Başlık ve Toggle -->
+            <label class="reminder-header">
+              <div class="reminder-toggle">
+                <input type="checkbox" id="shiftReminder" />
+                <span class="reminder-slider"></span>
+              </div>
+              <div class="reminder-info">
+                <span class="reminder-title">Vardiya sonu hatırlatması</span>
+                <span class="reminder-desc">Seçilen günlerin son çalışma saatini takvime ayrı etkinlik olarak ekle</span>
+              </div>
+            </label>
+
+            <!-- Gün Seçicileri -->
+            <div id="reminderDaysContainer" class="reminder-days-container hidden">
+              <label class="form-label" for="shiftReminderTitle">Takvimde görünecek başlık</label>
+              <input id="shiftReminderTitle" class="input" type="text" maxlength="80" value="Hatırlatma" />
+              <p class="form-hint">Bu alan yalnız ICS dosyasına eklenir; AI sağlayıcısına gönderilmez.</p>
+              <p class="reminder-days-label">Hangi günlere eklensin?</p>
+              <div class="reminder-days-grid">
+                <label class="day-pill">
+                  <input type="checkbox" class="reminder-day" data-day="0" />
+                  <span>Pzt</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="reminder-day" data-day="1" />
+                  <span>Sal</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="reminder-day" data-day="2" />
+                  <span>Çar</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="reminder-day" data-day="3" />
+                  <span>Per</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="reminder-day" data-day="4" />
+                  <span>Cum</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="reminder-day" data-day="5" />
+                  <span>Cmt</span>
+                </label>
+                <label class="day-pill">
+                  <input type="checkbox" class="reminder-day" data-day="6" />
+                  <span>Paz</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <h3 class="section-title" data-i18n="weeklyActivities">Haftalık Aktiviteler</h3>
           <p class="form-hint" style="margin-bottom: 16px" data-i18n="activitiesHint">
             Boş zamanlarınıza yerleştirilecek aktiviteleri seçin
@@ -342,6 +359,12 @@ Pazar 10:00 - 18:00"
             </li>
           </template>
         </section>
+
+        <div id="planConnectionSettings" class="hidden">
+          <label class="form-label" for="planConnection">Planlama bağlantısı</label>
+            <select id="planConnection" class="input"><option value="">Kural tabanlı · ücretsiz</option></select>
+            <p class="form-hint">Seçtiğin bağlantı kullanılır. Hata olursa ücretsiz kural tabanlı plan hazırlanır; başka ücretli hesaba otomatik geçilmez.</p>
+        </div>
 
         <!-- Butonlar -->
         <div class="flex gap-4" style="flex-wrap: wrap">
@@ -373,7 +396,7 @@ Pazar 10:00 - 18:00"
             </svg>
             <span data-i18n="preview">Önizle</span>
           </button>
-          <button
+            <button
             id="generatePlanBtn"
             class="btn btn-success btn-lg hidden"
             style="flex: 1; min-width: 200px"
@@ -556,6 +579,8 @@ Pazar 10:00 - 18:00"
     <script src="/static/js/ics.js?v={{ v }}"></script>
     <script src="/static/js/activities.js?v={{ v }}"></script>
     <script src="/static/js/ocrparse.js?v={{ v }}"></script>
+    <script src="/static/js/accounts.js?v={{ v }}"></script>
+    <script src="/static/js/schedule-review.js?v={{ v }}"></script>
     <script src="/static/js/app.js?v={{ v }}"></script>
 
     <!-- Service Worker Registration -->

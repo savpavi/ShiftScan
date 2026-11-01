@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import date, timedelta
+import asyncio
 import uvicorn
 import pytz
 from dotenv import load_dotenv
@@ -21,18 +23,65 @@ from services.ocr_service import process_ocr_image, is_ocr_available
 from services.timeline_builder import build_timeline, find_free_slots
 from services.ics_generator import generate_final_ics
 from services.models import MAX_ACTIVITIES, ActivityGoal, CalendarLabels
+from services.shift_validation import ShiftEvent, validate_shifts
+from services.account_routes import router as account_router
+from services.provider_routes import router as provider_router
+from services.accounts import current_user, get_store, require_csrf
+from services.providers import generate_json, ProviderError
+from services.schedule_extraction import validate_image, normalize_schedule, extraction_prompt
+from services.usage_limits import provider_job
 from services.ai_planner import (
     place_activity_plan,
     configure_gemini,
     place_basic_plan,
     get_gemini_activity_plan,
     is_gemini_configured,
+    create_gemini_activity_prompt,
+    parse_activity_plan,
 )
 
 app = FastAPI(
     title="Shift Schedule OCR to ICS",
     description="A web app that scans your shift schedule image with AI-powered OCR and converts it into ICS calendar format"
 )
+
+app.include_router(account_router)
+app.include_router(provider_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request, exc):
+    # Pydantic varsayılanı parola/API anahtarı içeren input alanını echo eder.
+    return JSONResponse(status_code=422, content={"detail": [
+        {"loc": list(error["loc"]), "msg": error["msg"], "type": error["type"]}
+        for error in exc.errors()
+    ]}, headers={"Cache-Control": "no-store"})
+
+
+@app.middleware("http")
+async def private_responses(request: Request, call_next):
+    if request.method in {'POST', 'PUT', 'PATCH'}:
+        limit = 12_100_000 if request.url.path in {'/ocr', '/api/ocr/extract'} else 32_768
+        async def read_limited():
+            chunks = bytearray()
+            async for chunk in request.stream():
+                chunks.extend(chunk)
+                if len(chunks) > limit:
+                    return None
+            return bytes(chunks)
+        try:
+            body = await asyncio.wait_for(read_limited(), timeout=15)
+        except asyncio.TimeoutError:
+            return JSONResponse({'detail': 'İstek gövdesi zamanında alınamadı.'}, status_code=408, headers={'Cache-Control':'no-store'})
+        if body is None:
+            return JSONResponse({'detail': 'İstek boyutu sınırı aşıldı.'}, status_code=413, headers={'Cache-Control':'no-store'})
+        request._body = body
+    response = await call_next(request)
+    if request.url.path.startswith(("/api/", "/ocr", "/health", "/generate-plan")):
+        response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
 
 # Limitler
 # 2000x2000 PNG bir crop'un base64 karsiligina yer birakir, sinirsiz payload'i keser
@@ -41,7 +90,8 @@ MAX_OCR_PROMPT_LENGTH = 2_000
 GEMINI_TIMEOUT_SECONDS = 30.0
 
 # Google Gemini API Configuration (opsiyonel - yoksa kural tabanli plan devreye girer)
-configure_gemini()
+if os.getenv("SHIFTSCAN_DEMO_AI") == "true":
+    configure_gemini()
 
 # Static files ve templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -54,7 +104,7 @@ def _static_version() -> str:
     if commit:
         return commit[:12]
     digest = hashlib.sha1()
-    for path in sorted(Path("static").rglob("*")):
+    for path in sorted(list(Path("static").rglob("*")) + list(Path("templates").rglob("*"))):
         if path.is_file():
             digest.update(path.read_bytes())
     return digest.hexdigest()[:12]
@@ -74,12 +124,6 @@ async def service_worker():
     )
 
 # Pydantic modelleri
-class ShiftEvent(BaseModel):
-    model_config = {"extra": "forbid"}
-
-    start: str
-    end: str
-
 class OCRRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
@@ -91,7 +135,8 @@ class PlanRequest(BaseModel):
 
     start_date: str
     timezone: str = "UTC"
-    shift_events: List[ShiftEvent]
+    connection_id: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    shift_events: List[ShiftEvent] = Field(max_length=56)
     activities: List[ActivityGoal] = Field(min_length=1, max_length=MAX_ACTIVITIES)
     labels: CalendarLabels = CalendarLabels()
 
@@ -130,11 +175,16 @@ def _validate_timezone(name: str) -> str:
 
 
 @app.post("/generate-plan")
-async def generate_plan(plan_data: PlanRequest):
+async def generate_plan(plan_data: PlanRequest, request: Request):
     """Vardiya ve aktivite verilerinden haftalik plan ICS'i uretir."""
     try:
         week_start = _week_start_from(plan_data.start_date)
         timezone = _validate_timezone(plan_data.timezone)
+
+        try:
+            validate_shifts([event.model_dump() for event in plan_data.shift_events], week_start, timezone)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
 
         # 1. Timeline (vardiya + uyku)
         timeline = build_timeline(
@@ -151,9 +201,29 @@ async def generate_plan(plan_data: PlanRequest):
 
         # 3. Aktivite dagilimi (AI, basarisizsa kural tabanli)
         known_ids = {goal.id for goal in plan_data.activities}
-        activity_plan = await get_gemini_activity_plan(
-            free_slots, plan_data.activities, known_ids, timeout=GEMINI_TIMEOUT_SECONDS
-        )
+        activity_plan = []
+        fallback_reason = None
+        if plan_data.connection_id:
+            user = current_user(request)
+            require_csrf(request)
+            store = get_store()
+            connection = store.get_connection(user['id'], plan_data.connection_id)
+            prompt = create_gemini_activity_prompt(free_slots, plan_data.activities)
+            prompt += '\nReturn a JSON object with a "plan" key containing the array above.'
+            try:
+                async with provider_job(store.path, user['id']):
+                    raw = await asyncio.wait_for(generate_json(connection, prompt), timeout=50)
+                activity_plan = parse_activity_plan(raw.get('plan', []) if isinstance(raw, dict) else raw, known_ids)
+                if not activity_plan:
+                    fallback_reason = 'invalid_output'
+            except ProviderError as exc:
+                fallback_reason = exc.code
+            except asyncio.TimeoutError:
+                fallback_reason = 'timeout'
+        elif os.getenv('SHIFTSCAN_DEMO_AI') == 'true':
+            activity_plan = await get_gemini_activity_plan(
+                free_slots, plan_data.activities, known_ids, timeout=GEMINI_TIMEOUT_SECONDS
+            )
 
         if activity_plan:
             activity_events, unplaced = place_activity_plan(
@@ -176,6 +246,7 @@ async def generate_plan(plan_data: PlanRequest):
             "status": "success",
             "message": "Plan generated",
             "plan_source": plan_source,
+            "fallback_reason": fallback_reason,
             "unplaced": unplaced,
             "ics_content": final_ics,
             "download_ready": True,
@@ -192,6 +263,36 @@ async def generate_plan(plan_data: PlanRequest):
         )
 
 
+class ExtractRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    connection_id: str = Field(min_length=1, max_length=80)
+    start_date: str = Field(max_length=10)
+    image_base64: str = Field(min_length=1, max_length=MAX_IMAGE_BASE64_LENGTH)
+
+
+@app.post('/api/ocr/extract')
+async def extract_schedule(body: ExtractRequest, request: Request):
+    user = current_user(request)
+    require_csrf(request)
+    store = get_store()
+    connection = store.get_connection(user['id'], body.connection_id)
+    week_start = _week_start_from(body.start_date)
+    try:
+        image = await asyncio.to_thread(validate_image, body.image_base64)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    try:
+        async with provider_job(store.path, user['id']):
+            raw = await asyncio.wait_for(generate_json(connection, extraction_prompt(week_start), image=image), timeout=50)
+        return normalize_schedule(raw, week_start)
+    except ProviderError as exc:
+        raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.message}) from None
+    except asyncio.TimeoutError:
+        raise HTTPException(504, 'Tarama zaman aşımına uğradı. Yeniden deneyin veya yerel OCR kullanın.') from None
+    except ValueError:
+        raise HTTPException(502, 'Görselden geçerli bir vardiya tablosu çıkarılamadı. Başka bir model veya daha net görsel deneyin.') from None
+
+
 @app.post("/ocr")
 async def perform_ocr(request: OCRRequest):
     """
@@ -204,6 +305,8 @@ async def perform_ocr(request: OCRRequest):
         OCR result with extracted text
     """
     try:
+        if os.getenv("SHIFTSCAN_LEGACY_OCR") != "true":
+            raise HTTPException(503, "Eski OCR servisi kapalı. Cihazda OCR veya kendi sağlayıcı bağlantınızı kullanın.")
         if not is_ocr_available():
             raise HTTPException(
                 status_code=503,
@@ -253,7 +356,8 @@ Return the raw text exactly as it appears, preserving the layout."""
 async def ocr_status():
     """Check OCR service availability"""
     return {
-        "available": is_ocr_available(),
+        "available": os.getenv("SHIFTSCAN_LEGACY_OCR") == "true" and is_ocr_available(),
+        "modes": ["local", "user_provider"],
         "model": "Nanonets-OCR2-3B",
         "provider": "HuggingFace Space (prithivMLmods/Multimodal-OCR)"
     }
@@ -265,9 +369,9 @@ async def health_check():
     return {
         "status": "healthy",
         "message": "Shift to ICS Converter is running",
-        "gemini_configured": is_gemini_configured(),
-        "ocr_available": is_ocr_available()
+        "gemini_configured": os.getenv("SHIFTSCAN_DEMO_AI") == "true" and is_gemini_configured(),
+        "ocr_available": os.getenv("SHIFTSCAN_LEGACY_OCR") == "true" and is_ocr_available()
     }
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

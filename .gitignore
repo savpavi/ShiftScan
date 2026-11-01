@@ -63,3 +63,10 @@ htmlcov/
 # Snapshots (VS Code backup)
 .snapshots/
 .claude/
+
+# Kullanıcı veritabanı, şifreleme anahtarı ve yerel önizleme
+/data/
+/.local-preview/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

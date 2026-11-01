@@ -33,3 +33,17 @@ Thumbs.db
 # Documentation
 README.md
 *.md
+
+# Kullanıcı sırları ve test/agent çalışma alanları image'a girmez
+.env.*
+!.env.example
+data/
+.local-preview/
+.superpowers/
+.agents/
+.codex/
+.pytest_cache/
+tests/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

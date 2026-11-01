@@ -8,3 +8,7 @@ python-dotenv==1.2.3
 google-genai==2.20.0
 pytz==2026.3.post1
 gradio_client==2.6.1
+# Kullanıcı bağlantıları, sabit sağlayıcı adaptörleri ve görsel doğrulaması
+cryptography==50.0.1
+httpx==0.28.1
+Pillow==12.3.0

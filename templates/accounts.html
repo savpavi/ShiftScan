@@ -1,0 +1,27 @@
+<details class="card account-panel" id="accountsPanel">
+  <summary>Hesaplarım ve AI bağlantıları <span id="accountBadge" class="form-hint">Misafir</span></summary>
+  <p class="form-hint">Kendi API anahtarlarınla birden fazla sağlayıcı bağlayabilirsin. Manuel giriş ve cihazda OCR için hesap gerekmez.</p>
+  <p id="accountMessage" class="form-hint" role="status" aria-live="polite"></p>
+  <form id="authForm" class="account-grid">
+    <label class="form-label">Kullanıcı adı<input class="input" name="username" required minlength="3" maxlength="32" autocomplete="username" placeholder="3–32 karakter" /></label>
+    <label class="form-label">Parola<input class="input" type="password" name="password" required minlength="12" maxlength="128" autocomplete="current-password" placeholder="En az 12 karakter" /></label>
+    <div class="account-actions"><button class="btn btn-primary" type="submit" value="login">Giriş yap</button><button class="btn btn-secondary" type="submit" value="register">Hesap oluştur</button></div>
+    <small class="form-hint">E-posta ile parola sıfırlama henüz yok. Parolanı güvenli bir yerde sakla.</small>
+  </form>
+  <div id="signedIn" hidden>
+    <button type="button" id="logoutBtn" class="btn btn-secondary">Çıkış yap</button>
+    <ul id="connectionList" class="connection-list"></ul>
+    <form id="connectionForm" class="account-grid">
+      <label class="form-label">Sağlayıcı<select name="provider" id="connectionProvider" class="input" required></select></label>
+      <label class="form-label">Bağlantı adı<input name="label" class="input" maxlength="80" required placeholder="Örn. kişisel Gemini" /></label>
+      <label class="form-label">API anahtarı<input name="api_key" id="connectionApiKey" class="input" type="password" maxlength="4096" required autocomplete="off" spellcheck="false" /></label>
+      <label class="form-label">Model
+        <select name="model" id="connectionModel" class="input" required disabled><option value="">Önce anahtarı gir, sonra modelleri getir</option></select>
+      </label>
+      <button type="button" id="fetchModelsBtn" class="btn btn-secondary">Modelleri getir</button>
+      <button type="submit" class="btn btn-primary">Bağlantı ekle</button>
+    </form>
+    <p class="form-hint">Anahtarlar sunucuda şifrelenerek saklanır. Modelin görsel desteklemesi OCR için gereklidir. Modelleri getirmek anahtarı da doğrular; ücretli model çağrısı yapmaz.</p>
+  </div>
+  <details class="subscription-status"><summary>Abonelikle giriş durumu</summary><p class="form-hint">ChatGPT, Claude ve Gemini abonelikleriyle giriş desteklenmiyor; kendi API anahtarını kullan. API anahtarı abonelik kotası kullanmaz.</p></details>
+</details>

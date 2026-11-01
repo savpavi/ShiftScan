@@ -29,6 +29,7 @@ def plan_body(**overrides) -> dict:
 def no_api_key(monkeypatch):
     """Testler gercek Gemini cagrisi yapmasin."""
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setenv("SHIFTSCAN_LEGACY_OCR", "true")
 
 
 def test_generate_plan_falls_back_when_ai_unavailable():

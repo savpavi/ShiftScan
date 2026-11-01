@@ -1067,7 +1067,7 @@ body {
    DİJİTAL ACENTELİK
    ============================================ */
 
-.dijital-acentelik-card {
+.shift-reminder-card {
   margin-top: 16px;
   padding: 20px;
   background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%);
@@ -1076,45 +1076,45 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-.dijital-header {
+.reminder-header {
   display: flex;
   align-items: center;
   gap: 16px;
   cursor: pointer;
 }
 
-.dijital-info {
+.reminder-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.dijital-title {
+.reminder-title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text);
 }
 
-.dijital-desc {
+.reminder-desc {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
 
 /* Toggle Switch (iOS Style) */
-.dijital-toggle {
+.reminder-toggle {
   position: relative;
   width: 52px;
   height: 28px;
   flex-shrink: 0;
 }
 
-.dijital-toggle input {
+.reminder-toggle input {
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.dijital-slider {
+.reminder-slider {
   position: absolute;
   cursor: pointer;
   top: 0;
@@ -1126,7 +1126,7 @@ body {
   border-radius: 28px;
 }
 
-.dijital-slider:before {
+.reminder-slider:before {
   position: absolute;
   content: "";
   height: 22px;
@@ -1139,16 +1139,16 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-.dijital-toggle input:checked + .dijital-slider {
+.reminder-toggle input:checked + .reminder-slider {
   background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
 }
 
-.dijital-toggle input:checked + .dijital-slider:before {
+.reminder-toggle input:checked + .reminder-slider:before {
   transform: translateX(24px);
 }
 
 /* Days Container */
-.dijital-days-container {
+.reminder-days-container {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -1166,14 +1166,14 @@ body {
   }
 }
 
-.dijital-days-label {
+.reminder-days-label {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 12px;
   font-weight: 500;
 }
 
-.dijital-days-grid {
+.reminder-days-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1219,14 +1219,43 @@ body {
 }
 
 /* Dark mode */
-[data-theme="dark"] .dijital-acentelik-card {
+[data-theme="dark"] .shift-reminder-card {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, var(--bg-card) 100%);
 }
 
-[data-theme="dark"] .dijital-slider {
+[data-theme="dark"] .reminder-slider {
   background-color: #374151;
 }
 
 [data-theme="dark"] .day-pill span {
   background: var(--bg-card);
 }
+
+/* Kullanıcı bağlantıları ve görselden çıkarılan vardiya incelemesi */
+[hidden] { display: none !important; }
+.account-panel summary { cursor: pointer; font-weight: 600; }
+.account-panel summary .form-hint { margin-left: 8px; }
+.account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.account-grid .form-label { display: flex; flex-direction: column; gap: 6px; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.connection-list { list-style: none; padding: 0; margin: 16px 0; }
+.connection-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.subscription-status { border-top: 1px solid var(--border); padding-top: 12px; }
+.schedule-review { border: 1px solid var(--primary); border-radius: var(--radius); padding: 16px; margin: 18px 0; }
+.schedule-review h3 { margin-bottom: 8px; }
+.review-rows { margin: 16px 0; }
+.review-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.review-row strong, .review-row .source-cell, .review-row .review-warning { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.review-warning { color: var(--text); background: var(--warning-light); padding: 6px 8px; border-radius: 4px; font-size: 0.85rem; }
+.review-warning:empty { display: none; }
+.source-cell { color: var(--text-muted); }
+.review-row .duty-chip { grid-column: 1 / -1; justify-self: start; background: var(--primary-light, rgba(99,102,241,.12)); color: var(--text); padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; }
+.review-week-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.review-confirm { display: block; margin: 14px 0; font-size: 0.9rem; }
+.schedule-review .btn { margin: 4px 4px 4px 0; }
+@media (max-width: 520px) {
+ .account-grid, .review-row { grid-template-columns: 1fr; }
+ .connection-list li { align-items: flex-start; flex-direction: column; }
+ .account-actions .btn { flex: 1; }
+}
+.ocr-raw-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font: inherit; }
