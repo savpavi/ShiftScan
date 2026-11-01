@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sayfa yüklendiğinde i18n varsa UI'ı güncelle
         setTimeout(() => {
             if (window.i18n) {
-                window.i18n.setLanguage(savedLang);
+                window.i18n.setLanguage(window.i18n.currentLang);
                 renderTemplates();
             }
         }, 100);

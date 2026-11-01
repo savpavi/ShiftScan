@@ -126,3 +126,13 @@ def test_week_hint_ignored_when_not_monday_or_same_week():
     assert 'suggested_week_start' not in normalize_schedule({'people': _week_people(), 'week_hint': '03.11'}, requested)
     assert 'suggested_week_start' not in normalize_schedule({'people': _week_people(), 'week_hint': '26.10'}, requested)
     assert 'suggested_week_start' not in normalize_schedule({'people': _week_people(), 'week_hint': '31.02'}, requested)
+
+
+
+def test_missing_year_note_is_not_repeated_on_every_identified_day():
+    days = [{'day_index': i, 'status': 'off', 'issue': 'Yıl görünmüyor; tarih null bırakıldı.'} for i in range(7)]
+    days[2] = {'day_index': 2, 'status': 'off', 'issue': 'Yıl görünmüyor. Hücre kısmen silik.'}
+    result = normalize_schedule({'people': [{'id': 'a', 'name': 'A', 'days': days}]}, WEEK)
+    issues = [d['issue'] for d in result['people'][0]['days']]
+    assert issues[0] == '' and issues[6] == ''
+    assert issues[2] == 'Hücre kısmen silik.'

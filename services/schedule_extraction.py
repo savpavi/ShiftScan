@@ -3,6 +3,7 @@ import base64
 import binascii
 import io
 import json
+import re
 import unicodedata
 import warnings
 from datetime import date, timedelta
@@ -61,6 +62,19 @@ class Schedule(BaseModel):
     duties: list[DutyRow] = Field(default_factory=list, max_length=10)
     week_hint: Optional[str] = Field(default=None, pattern=r'^\d{1,2}\.\d{1,2}$')
     warnings: list[str] = Field(default_factory=list, max_length=30)
+
+
+# Gün sütunu belliyken "yıl yok / tarih null" gibi notlar her güne tekrar yazılmasın.
+_DATE_ONLY_ISSUE = re.compile(
+    r'^[^.;]*\b(yıl|yil|tarih|year|date)\w*\b[^.;]*(görün|yok|null|belirtil|yazmıyor|eksik|missing)[^.;]*[.;,]?\s*$',
+    re.IGNORECASE,
+)
+
+
+def _strip_date_only_issue(issue: str) -> str:
+    parts = [part for part in re.split(r'(?<=[.;,])\s+', issue.strip()) if part]
+    kept = [part for part in parts if not _DATE_ONLY_ISSUE.match(part)]
+    return ' '.join(kept)
 
 
 def _fold(text: str) -> str:
@@ -168,7 +182,7 @@ def normalize_schedule(raw: dict, week_start: date) -> dict:
                            'sırasıyla yerleştirildi. Her günü görselle karşılaştırın.')
         for cell in person.days:
             index = cell.day_index
-            issue = cell.issue
+            issue = _strip_date_only_issue(cell.issue) if cell.day_index is not None and not cell.date else cell.issue
             if id(cell) in guessed:
                 index = guessed[id(cell)]
                 issue = 'Gün sırayla tahmin edildi; kontrol edin.' + (f' {cell.issue}' if cell.issue else '')
@@ -233,7 +247,8 @@ def extraction_prompt(week_start: date) -> str:
         'e.g. on-call or agency duty) goes into duties, not people: name = the row label, and for each '
         'day the person names written in that cell. '
         'If day headers show day and month without a year, set week_hint to the Monday column as DD.MM '
-        '(e.g. 2.Kas -> 02.11); still leave date null. '
+        '(e.g. 2.Kas -> 02.11); still leave date null. Mention a missing year at most once in warnings, '
+        'never in each day\'s issue. '
         'explain ambiguity in Turkish in issue. Do not invent confidence percentages. '
         'Return ONLY a JSON object matching this schema: ' + json.dumps(schema, ensure_ascii=False)
     )
