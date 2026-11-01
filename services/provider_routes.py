@@ -37,16 +37,14 @@ def _public(record: dict) -> dict:
 def providers_metadata():
     reasons = {
         "gemini": "Google abonelik bağlantısı henüz doğrulanmadı.",
-        "openai": "ChatGPT abonelik bağlantısı henüz doğrulanmadı.",
+        "openai": "ChatGPT abonelik bağlantısı desteklenmiyor; API anahtarı kullanın.",
         "anthropic": "Claude abonelik bağlantısı henüz doğrulanmadı.",
         "openrouter": "OpenRouter abonelik bağlantısı sunmuyor; API anahtarı kullanın.",
     }
-    from services.chatgpt import enabled
     return {
-        "chatgpt_enabled": enabled(),
         "providers": [dict(item) for item in SUPPORTED_PROVIDERS],
         "subscriptions": [
-            {"id": item["id"], "label": item["label"], "available": enabled() if item["id"] == "openai" else False, "reason": "ChatGPT cihaz koduyla giriş; yalnız planlama." if item["id"] == "openai" and enabled() else reasons[item["id"]]}
+            {"id": item["id"], "label": item["label"], "available": False, "reason": reasons[item["id"]]}
             for item in SUPPORTED_PROVIDERS
         ],
     }

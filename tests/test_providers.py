@@ -191,7 +191,6 @@ def test_provider_metadata_marks_subscription_adapters_unavailable(monkeypatch):
     response = client.get("/api/providers")
     assert response.status_code == 200
     assert response.json() == {
-        "chatgpt_enabled": False,
         "providers": [
             {"id": "gemini", "label": "Google Gemini", "auth_types": ["api_key"], "vision": True},
             {"id": "openai", "label": "OpenAI", "auth_types": ["api_key"], "vision": True},
@@ -200,7 +199,7 @@ def test_provider_metadata_marks_subscription_adapters_unavailable(monkeypatch):
         ],
         "subscriptions": [
             {"id": "gemini", "label": "Google Gemini", "available": False, "reason": "Google abonelik bağlantısı henüz doğrulanmadı."},
-            {"id": "openai", "label": "OpenAI", "available": False, "reason": "ChatGPT abonelik bağlantısı henüz doğrulanmadı."},
+            {"id": "openai", "label": "OpenAI", "available": False, "reason": "ChatGPT abonelik bağlantısı desteklenmiyor; API anahtarı kullanın."},
             {"id": "anthropic", "label": "Anthropic", "available": False, "reason": "Claude abonelik bağlantısı henüz doğrulanmadı."},
             {"id": "openrouter", "label": "OpenRouter", "available": False, "reason": "OpenRouter abonelik bağlantısı sunmuyor; API anahtarı kullanın."},
         ],

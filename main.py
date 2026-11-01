@@ -40,25 +40,13 @@ from services.ai_planner import (
     parse_activity_plan,
 )
 
-from contextlib import asynccontextmanager
-from services.chatgpt import router as chatgpt_router, shutdown as shutdown_chatgpt
-
-
-@asynccontextmanager
-async def lifespan(app):
-    yield
-    await shutdown_chatgpt()
-
-
 app = FastAPI(
-    lifespan=lifespan,
     title="Shift Schedule OCR to ICS",
     description="A web app that scans your shift schedule image with AI-powered OCR and converts it into ICS calendar format"
 )
 
 app.include_router(account_router)
 app.include_router(provider_router)
-app.include_router(chatgpt_router)
 
 
 @app.exception_handler(RequestValidationError)

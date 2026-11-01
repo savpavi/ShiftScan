@@ -172,7 +172,7 @@ maliyeti anonimleştirilmiş vardiya örnekleriyle ayrıca kıyaslanmalıdır.
 
 ### Abonelikle giriş durumu
 
-Claude/Gemini abonelik OAuth bağlantıları **henüz etkin değil**. ChatGPT için aşağıdaki deneysel cihaz kodu akışı eklendi. Adaptör
+ChatGPT/Claude/Gemini abonelik OAuth bağlantıları **desteklenmiyor**. Adaptör
 ve hesap sınırları hazır, ancak Zed'in masaüstü loopback akışını genel web sitesi
 OAuth'u olarak kullanmak doğrulanmış değil. Claude üçüncü taraf ürün girişi için
 sağlayıcı onayı gerektiriyor. API anahtarıyla kullanım abonelik kotası kullanmaz.
@@ -187,17 +187,3 @@ eski servis ayrı bir dış veri aktarımıdır; canlı çok kullanıcılı kull
 Takvim dosyaları mevcut floating yerel saat davranışını korur. Başka saat
 dilimindeki takvime aktarımda aynı UTC anını korumaz.
 
-### ChatGPT aboneliği — deneysel, tek worker
-
-`SHIFTSCAN_CHATGPT_ENABLED=true` ve sunucuda Codex CLI gerektirir. Protokol Codex 0.153.4 ile sınandı; `SHIFTSCAN_CODEX_BIN` mutlak binary yolu olabilir. Mevcut Docker image CLI içermez; üretim yayınına hazır kabul etmeyin. Bu aşamada yalnız tek Uvicorn worker/tek uygulama örneği desteklenir; login görevleri ve bağlantı kilitleri süreç belleğindedir. Yeniden başlatmada bekleyen girişler yeniden başlatılmalıdır.
-
-1. ShiftScan'e giriş yapın, hesap bölümünde **ChatGPT ile bağlan** seçin.
-2. Gösterilen OpenAI sayfasında tek kullanımlık kodu onaylayın. OpenAI hesabının güvenlik ayarlarında cihaz kodu izni gerekebilir.
-3. Hesabın model listesinden seçim yapıp **Bağlantıyı kaydet** seçin. Aynı kullanıcı ardışık olarak birden fazla hesap bağlayabilir.
-4. Gelişmiş modda planlama bağlantısını seçin. ChatGPT bağlantısı OCR listesinde gösterilmez; görsel çağrısı bu sürümde desteklenmez.
-
-Giriş 10 dakika içinde tamamlanır veya iptal edilir. OpenAI şifresi uygulamaya gelmez. Tokenlar mevcut Fernet deposunda kullanıcı ve bağlantı kimliğine bağlı şifrelenir; yenileme sonrası kayıt güncellenir. İşlem sırasında 0700 geçici home içinde 0600 auth.json kullanılır, işlem bitince silinir. Sunucu yöneticisinin Codex home'u, API anahtarları ve eklenti ayarları devralınmaz. Uygulama aniden öldürülürse geçici dizin kalabilir; üretimde kullanıcı başına kapsayıcı/tmpfs ve yaşam döngüsü temizliği gerekir.
-
-Codex araçları kapatılır, read-only/never politikası uygulanır ve araç çağrısı görülürse süreç sonlandırılır. Bu kontroller işletim sistemi seviyesinde kullanıcı başına izolasyon yerine geçmez. Herkese açık çok kullanıcılı yayın öncesi izole worker tasarımı ve kaynak sınırları ayrıca tamamlanmalıdır. API fallback yalnız ücretsiz kural tabanlı yoldur. Başarılı login tek başına model çağrısının doğrulandığı anlamına gelmez.
-
-Kaynak: [Codex App Server](https://developers.openai.com/codex/app-server), [Codex authentication](https://developers.openai.com/codex/auth/).
