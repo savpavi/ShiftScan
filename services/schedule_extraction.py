@@ -3,6 +3,7 @@ import base64
 import binascii
 import io
 import json
+import unicodedata
 import warnings
 from datetime import date, timedelta
 from typing import Literal, Optional
@@ -42,9 +43,68 @@ class SchedulePerson(BaseModel):
     days: list[ScheduleDay] = Field(default_factory=list, max_length=31)
 
 
+class DutyCell(BaseModel):
+    day_index: Optional[int] = Field(default=None, ge=0, le=6)
+    column: Optional[int] = Field(default=None, ge=0, le=30)
+    people: list[str] = Field(default_factory=list, max_length=30)
+    source_text: str = Field(default='', max_length=500)
+
+
+class DutyRow(BaseModel):
+    """Çalışan olmayan görev/nöbet satırı: her gün hangi kişilerin görevli olduğunu listeler."""
+    name: str = Field(min_length=1, max_length=120)
+    days: list[DutyCell] = Field(default_factory=list, max_length=31)
+
+
 class Schedule(BaseModel):
     people: list[SchedulePerson] = Field(min_length=1, max_length=100)
+    duties: list[DutyRow] = Field(default_factory=list, max_length=10)
+    week_hint: Optional[str] = Field(default=None, pattern=r'^\d{1,2}\.\d{1,2}$')
     warnings: list[str] = Field(default_factory=list, max_length=30)
+
+
+def _fold(text: str) -> str:
+    """Büyük/küçük harf ve Türkçe aksan farkını yok say (EGE == Ege, HÜLYA == Hulya, İ/ı == i)."""
+    text = text.replace('ı', 'i').replace('İ', 'i')
+    text = unicodedata.normalize('NFKD', text)
+    return ''.join(ch for ch in text if not unicodedata.combining(ch)).casefold()
+
+
+def _tokens(name: str) -> set[str]:
+    return {t for t in ''.join(ch if ch.isalnum() else ' ' for ch in _fold(name)).split() if len(t) >= 2}
+
+
+def _cell_days(cells) -> dict[int, object]:
+    """day_index varsa onu, yoksa 7 hücrelik başlıksız satırda görsel sırayı kullan."""
+    if any(c.day_index is not None for c in cells):
+        return {c.day_index: c for c in cells if c.day_index is not None}
+    if len(cells) == 7:
+        columns = [c.column for c in cells]
+        order = (sorted(range(7), key=lambda i: columns[i])
+                 if None not in columns and len(set(columns)) == 7 else list(range(7)))
+        return {day: cells[pos] for day, pos in enumerate(order)}
+    return {}
+
+
+def _suggested_week(hint: Optional[str], week_start: date) -> Optional[str]:
+    """Görseldeki Pazartesi 'GG.AA' bilgisinden, istenen haftaya en yakın yılı seçerek hafta öner."""
+    if not hint:
+        return None
+    day, month = (int(x) for x in hint.split('.'))
+    candidates = []
+    for year in (week_start.year - 1, week_start.year, week_start.year + 1):
+        try:
+            candidate = date(year, month, day)
+        except ValueError:
+            continue
+        if candidate.weekday() == 0:
+            candidates.append(candidate)
+    if not candidates:
+        return None
+    best = min(candidates, key=lambda d: abs((d - week_start).days))
+    if best == week_start or abs((best - week_start).days) > 120:
+        return None
+    return best.isoformat()
 
 
 def validate_image(encoded: str) -> dict:
@@ -82,6 +142,13 @@ def normalize_schedule(raw: dict, week_start: date) -> dict:
     parsed = Schedule.model_validate(raw)
     notices = [str(n)[:500] for n in parsed.warnings]
     people = []
+    duty_maps = []
+    for duty in parsed.duties:
+        mapped = _cell_days(duty.days)
+        if mapped:
+            duty_maps.append((duty, mapped))
+        else:
+            notices.append(f'{duty.name}: görev satırının günleri belirlenemedi; aktarılmadı.')
     for person_index, person in enumerate(parsed.people):
         days = [{
             'date': (week_start + timedelta(days=i)).isoformat(), 'day_index': i,
@@ -133,8 +200,18 @@ def normalize_schedule(raw: dict, week_start: date) -> dict:
                 shifts = []
                 issue = issue or 'Bu hücre net okunamadı; kontrol edin.'
             days[index].update(status=status, shifts=shifts, source_text=cell.source_text, issue=issue)
+        person_tokens = _tokens(person.name)
+        for duty, duty_days in duty_maps:
+            for index, cell in duty_days.items():
+                if any(_tokens(name) & person_tokens for name in cell.people):
+                    days[index].setdefault('duties', []).append(duty.name)
         people.append({'id': f'person-{person_index}', 'name': person.name, 'days': days})
-    return {'week_start': week_start.isoformat(), 'people': people, 'warnings': notices[:100]}
+    result = {'week_start': week_start.isoformat(), 'people': people, 'warnings': notices[:100],
+              'duties': [duty.name for duty, _ in duty_maps]}
+    suggested = _suggested_week(parsed.week_hint, week_start)
+    if suggested:
+        result['suggested_week_start'] = suggested
+    return result
 
 
 def extraction_prompt(week_start: date) -> str:
@@ -152,6 +229,11 @@ def extraction_prompt(week_start: date) -> str:
         'Use null for missing printed date. Do not invent an absent year: leave date null and '
         'describe uncertainty in issue. Times must be HH:MM, use end < start for overnight shifts. '
         'Preserve multiple shifts per day. Put visible source cell text in source_text; '
+        'A row that is not an employee but a duty/assignment (a task name with person names per day, '
+        'e.g. on-call or agency duty) goes into duties, not people: name = the row label, and for each '
+        'day the person names written in that cell. '
+        'If day headers show day and month without a year, set week_hint to the Monday column as DD.MM '
+        '(e.g. 2.Kas -> 02.11); still leave date null. '
         'explain ambiguity in Turkish in issue. Do not invent confidence percentages. '
         'Return ONLY a JSON object matching this schema: ' + json.dumps(schema, ensure_ascii=False)
     )

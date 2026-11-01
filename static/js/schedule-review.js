@@ -48,6 +48,46 @@
         })}]};
     }
 
+    /** Hafta başlangıcını değiştir; gün indeksleri aynı kalır, yalnız tarihler yeniden hesaplanır. */
+    function relabelWeek(result, weekStart) {
+        const start=new Date(`${weekStart}T12:00:00Z`);
+        if(Number.isNaN(start.getTime()))throw new Error('Geçersiz hafta.');
+        result.week_start=weekStart;
+        result.people.forEach(p=>p.days.forEach(day=>{
+            const d=new Date(start);d.setUTCDate(d.getUTCDate()+day.day_index);day.date=d.toISOString().slice(0,10);
+        }));
+        delete result.suggested_week_start;
+        return result;
+    }
+
+    /** Kişinin görev günleri: {görev adı: [gün indeksleri]} — yalnız çalıştığı günler. */
+    function dutyDays(person, statuses) {
+        const out={};
+        person.days.forEach((day,i)=>{
+            if((statuses ? statuses[i] : day.status)!=='work')return;
+            (day.duties||[]).forEach(name=>{(out[name]=out[name]||[]).push(day.day_index);});
+        });
+        return out;
+    }
+
+    function titleCase(text) {
+        return text.toLocaleLowerCase('tr').replace(/(^|\s)(\S)/g,(m,s,c)=>s+c.toLocaleUpperCase('tr'));
+    }
+
+    /** Görev günlerini "Vardiya sonu hatırlatması"na işle (gelişmiş mod). Döner: işlenen gün sayısı. */
+    function fillDutyReminder(duties) {
+        const names=Object.keys(duties); if(!names.length)return 0;
+        const name=names[0], days=new Set(duties[name]);
+        const advanced=document.getElementById('advancedModeToggle');
+        if(advanced && !advanced.checked){advanced.checked=true;advanced.dispatchEvent(new Event('change',{bubbles:true}));}
+        const reminder=document.getElementById('shiftReminder');
+        if(!reminder)return 0;
+        if(!reminder.checked){reminder.checked=true;reminder.dispatchEvent(new Event('change',{bubbles:true}));}
+        const title=document.getElementById('shiftReminderTitle'); if(title)title.value=titleCase(name).slice(0,80);
+        document.querySelectorAll('.reminder-day').forEach(cb=>{cb.checked=days.has(Number(cb.dataset.day));});
+        return days.size;
+    }
+
     function reset() {
         pending = false;
         if (typeof document !== 'undefined') {
@@ -69,6 +109,14 @@
         if(result.source_text)panel.append(node('pre',result.source_text,'ocr-raw-text'));
         panel.append(node('p', 'Kişiyi seç, belirsiz günleri düzelt ve görselle karşılaştır. Boş hücreler izin sayılmaz.', 'form-hint'));
         (result.warnings || []).forEach(w => panel.append(node('p', w, 'review-warning')));
+        if (result.suggested_week_start) {
+            const box=node('div',null,'review-week-hint');
+            const fmt=new Date(`${result.suggested_week_start}T12:00:00Z`).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+            box.append(node('span',`Görseldeki hafta ${fmt} Pazartesi gibi görünüyor. `));
+            const use=node('button','Bu haftayı kullan','btn btn-secondary');use.type='button';
+            use.addEventListener('click',()=>{relabelWeek(result,result.suggested_week_start);box.remove();render();});
+            box.append(use);panel.append(box);
+        }
         const personLabel=node('label','Kişi / satır','form-label');
         const select=node('select',null,'input'); select.id='reviewPerson'; personLabel.htmlFor=select.id;
         result.people.forEach((p,i) => { const opt=node('option',p.name || `Satır ${i+1}`);opt.value=String(i);select.append(opt); });
@@ -103,6 +151,7 @@
                 status.addEventListener('change',changed);times.addEventListener('input',()=>{check.checked=false;});
                 row.append(status,times);
                 if (day.source_text) row.append(node('small',`Görselde: ${day.source_text}`,'source-cell'));
+                (day.duties||[]).forEach(name=>row.append(node('small',`Görev: ${titleCase(name)}`,'duty-chip')));
                 if (day.issue) row.append(node('small',day.issue,'review-warning'));
                 rows.append(row);editors.push({day,status,times});
             });
@@ -121,13 +170,17 @@
                     }) : [],
                 }))};
                 const text=toShiftText(person);
+                const selected=result.people[Number(select.value)];
+                const duties=dutyDays(selected, person.days.map(d=>d.status));
                 document.getElementById('startDate').value=result.week_start;
                 const textarea=document.getElementById('shiftText');textarea.value=text;
                 textarea.dispatchEvent(new Event('input',{bubbles:true}));
                 reset(); textarea.focus();
+                const filled=fillDutyReminder(duties);
+                if(filled && window.toast?.info) window.toast.info(`${titleCase(Object.keys(duties)[0])}: ${filled} gün vardiya sonu hatırlatmasına eklendi.`);
             } catch(e) {error.textContent=e.message;}
         });
         panel.scrollIntoView({behavior:'smooth',block:'start'});
     }
-    return {toShiftText,localSchedule,show,reset,hasPending:()=>pending};
+    return {toShiftText,localSchedule,relabelWeek,dutyDays,titleCase,show,reset,hasPending:()=>pending};
 });

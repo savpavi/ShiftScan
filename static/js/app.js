@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         warning(message) { return this.show(message, 'warning'); },
         info(message) { return this.show(message, 'info'); }
     };
+    window.toast = toast; // inceleme panelinin (schedule-review.js) bildirimleri için
 
     // ============================================
     // YARDIMCI FONKSİYONLAR

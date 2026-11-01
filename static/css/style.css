@@ -1249,6 +1249,8 @@ body {
 .review-warning { color: var(--text); background: var(--warning-light); padding: 6px 8px; border-radius: 4px; font-size: 0.85rem; }
 .review-warning:empty { display: none; }
 .source-cell { color: var(--text-muted); }
+.review-row .duty-chip { grid-column: 1 / -1; justify-self: start; background: var(--primary-light, rgba(99,102,241,.12)); color: var(--text); padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; }
+.review-week-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
 .review-confirm { display: block; margin: 14px 0; font-size: 0.9rem; }
 .schedule-review .btn { margin: 4px 4px 4px 0; }
 @media (max-width: 520px) {

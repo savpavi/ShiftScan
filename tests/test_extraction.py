@@ -85,3 +85,44 @@ def test_headerless_cells_not_mapped_when_count_is_not_seven():
     result = normalize_schedule({'people': [{'id': 'a', 'name': 'A', 'days': cells}]}, WEEK)
     assert all(d['status'] == 'unknown' for d in result['people'][0]['days'])
     assert any('aktarılmadı' in w for w in result['warnings'])
+
+
+
+def _week_people():
+    off = [{'day_index': i, 'status': 'off'} for i in range(7)]
+    return [{'id': 'e', 'name': 'Ege Bostancı', 'days': off}, {'id': 'h', 'name': 'HÜLYA K.', 'days': off}]
+
+
+def test_duty_row_is_attached_to_matching_people_by_first_name():
+    raw = {'people': _week_people(), 'duties': [{'name': 'DİJİTAL ACENTELİK', 'days': [
+        {'day_index': 0, 'people': ['EGE']}, {'day_index': 1, 'people': ['Hulya', 'Anıl']},
+        {'day_index': 3, 'people': ['Yağmur / Ege']}]}]}
+    result = normalize_schedule(raw, WEEK)
+    ege, hulya = result['people']
+    assert [i for i, d in enumerate(ege['days']) if d.get('duties')] == [0, 3]
+    assert ege['days'][0]['duties'] == ['DİJİTAL ACENTELİK']
+    assert [i for i, d in enumerate(hulya['days']) if d.get('duties')] == [1]
+    assert result['duties'] == ['DİJİTAL ACENTELİK']
+
+
+def test_duty_row_without_days_is_reported_not_guessed():
+    raw = {'people': _week_people(), 'duties': [{'name': 'Nöbet', 'days': [{'people': ['Ege']}]}]}
+    result = normalize_schedule(raw, WEEK)
+    assert not any(d.get('duties') for p in result['people'] for d in p['days'])
+    assert any('Nöbet' in w for w in result['warnings'])
+
+
+def test_week_hint_suggests_the_printed_monday():
+    from datetime import date
+    requested = date(2026, 10, 26)
+    result = normalize_schedule({'people': _week_people(), 'week_hint': '02.11'}, requested)
+    assert result['suggested_week_start'] == '2026-11-02'
+    assert result['week_start'] == '2026-10-26'  # kullanıcı onaylamadan değişmez
+
+
+def test_week_hint_ignored_when_not_monday_or_same_week():
+    from datetime import date
+    requested = date(2026, 10, 26)
+    assert 'suggested_week_start' not in normalize_schedule({'people': _week_people(), 'week_hint': '03.11'}, requested)
+    assert 'suggested_week_start' not in normalize_schedule({'people': _week_people(), 'week_hint': '26.10'}, requested)
+    assert 'suggested_week_start' not in normalize_schedule({'people': _week_people(), 'week_hint': '31.02'}, requested)

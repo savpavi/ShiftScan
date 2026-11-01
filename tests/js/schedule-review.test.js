@@ -34,3 +34,23 @@ test('local OCR never guesses people or weekdays from unstructured text',()=>{
  assert.ok(result.people[0].days.every(d=>d.status==='unknown'&&d.shifts.length===0));
  assert.throws(()=>R.toShiftText(result.people[0]));
 });
+
+test('relabelWeek moves dates but keeps day indexes',()=>{
+ const r={week_start:'2026-10-26',suggested_week_start:'2026-11-02',people:[person()]};
+ R.relabelWeek(r,'2026-11-02');
+ assert.equal(r.week_start,'2026-11-02');
+ assert.deepEqual(r.people[0].days.map(d=>d.date),['2026-11-02','2026-11-03','2026-11-04','2026-11-05','2026-11-06','2026-11-07','2026-11-08']);
+ assert.equal(r.suggested_week_start,undefined);
+});
+test('dutyDays keeps only duty days the person actually works',()=>{
+ const p=person();
+ p.days[0]={day_index:0,status:'work',duties:['DİJİTAL ACENTELİK']};
+ p.days[2]={day_index:2,status:'off',duties:['DİJİTAL ACENTELİK']};
+ p.days[3]={day_index:3,status:'work',duties:['DİJİTAL ACENTELİK']};
+ assert.deepEqual(R.dutyDays(p),{'DİJİTAL ACENTELİK':[0,3]});
+ const edited=p.days.map(d=>d.status);edited[3]='off';
+ assert.deepEqual(R.dutyDays(p,edited),{'DİJİTAL ACENTELİK':[0]});
+});
+test('titleCase is Turkish aware',()=>{
+ assert.equal(R.titleCase('DİJİTAL ACENTELİK'),'Dijital Acentelik');
+});
