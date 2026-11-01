@@ -192,6 +192,23 @@ class AccountStore:
             raise HTTPException(503, 'Bağlantı anahtarı okunamadı; yapılandırmayı kontrol edin.') from None
         return self._metadata(row) | {'api_key': key, 'owner_id': user_id}
 
+    def update_model(self, user_id, connection_id, model):
+        if not isinstance(model, str) or not 1 <= len(model.strip()) <= 120:
+            raise HTTPException(422, 'Geçersiz model kimliği.')
+        with self._db() as db:
+            if not db.execute('UPDATE connections SET model=? WHERE user_id=? AND id=?',
+                              (model.strip(), user_id, connection_id)).rowcount:
+                raise HTTPException(404, 'Bağlantı bulunamadı.')
+        return self.get_public(user_id, connection_id)
+
+    def get_public(self, user_id, connection_id):
+        with self._db() as db:
+            row = db.execute('SELECT id,provider,label,model,created_at FROM connections WHERE user_id=? AND id=?',
+                             (user_id, connection_id)).fetchone()
+        if row is None:
+            raise HTTPException(404, 'Bağlantı bulunamadı.')
+        return self._metadata(row)
+
     def delete_connection(self, user_id, connection_id):
         with self._db() as db:
             result = db.execute('DELETE FROM connections WHERE user_id=? AND id=?', (user_id, connection_id))

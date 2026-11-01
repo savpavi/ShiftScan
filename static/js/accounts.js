@@ -41,10 +41,44 @@
             remove.setAttribute('aria-label',`${c.label} bağlantısını kaldır`);
             remove.addEventListener('click',()=>run(remove,async()=>{
                 await api(`/api/connections/${encodeURIComponent(c.id)}`,{method:'DELETE'});await refresh();setMessage('Bağlantı kaldırıldı.');
-            }));li.append(text,remove);list.append(li);
+            }));
+            const edit=document.createElement('button');edit.type='button';edit.className='btn btn-secondary';edit.textContent='Model değiştir';
+            edit.addEventListener('click',()=>{edit.disabled=true;modelEditor(c,li);});
+            const actions=document.createElement('span');actions.className='account-actions';actions.append(edit,remove);
+            li.append(text,actions);list.append(li);
         });
         if(!connections.length && session.user){const li=document.createElement('li');li.textContent='Henüz bağlantı yok. Aşağıdan ilk anahtarını ekle.';list.append(li);}
         fillSelections();
+    }
+    function fillModelSelect(select, models, current) {
+        select.replaceChildren();
+        if(!models.length){const o=document.createElement('option');o.value='';o.textContent='Uygun model bulunamadı';select.append(o);select.disabled=true;return;}
+        models.forEach(m=>{
+            const o=document.createElement('option');o.value=m.id;
+            o.textContent=m.label && m.label!==m.id ? `${m.label} (${m.id})` : m.id;
+            if(m.vision===false)o.textContent+=' · görsel yok';
+            select.append(o);
+        });
+        if(current && models.some(m=>m.id===current)) select.value=current;
+        select.disabled=false;
+    }
+    async function fetchModels(payload) {
+        return (await api('/api/providers/models',{method:'POST',body:JSON.stringify(payload)})).models;
+    }
+    function modelEditor(c, li) {
+        const box=document.createElement('div');box.className='account-actions';
+        const select=document.createElement('select');select.className='input';select.disabled=true;
+        select.setAttribute('aria-label',`${c.label} için model`);
+        const save=document.createElement('button');save.type='button';save.className='btn btn-primary';save.textContent='Kaydet';save.disabled=true;
+        box.append(select,save);li.append(box);
+        run(null,async()=>{
+            setMessage('Modeller getiriliyor…');
+            fillModelSelect(select, await fetchModels({connection_id:c.id}), c.model);save.disabled=select.disabled;setMessage('');
+        }).catch(()=>{});
+        save.addEventListener('click',()=>run(save,async()=>{
+            await api(`/api/connections/${encodeURIComponent(c.id)}`,{method:'PATCH',body:JSON.stringify({model:select.value})});
+            await refresh();setMessage('Model güncellendi.');
+        }));
     }
     function setMessage(text) {document.getElementById('accountMessage').textContent=text;}
     async function run(button, action) {
@@ -80,9 +114,22 @@
             run(event.submitter,async()=>{
                 const data=Object.fromEntries(new FormData(form));
                 await api('/api/connections',{method:'POST',body:JSON.stringify(data)});
-                form.reset();await refresh();setMessage('Bağlantı eklendi. OCR veya planlama bölümünden seçebilirsin.');
+                form.reset();resetModelSelect();await refresh();setMessage('Bağlantı eklendi. OCR veya planlama bölümünden seçebilirsin.');
             });
         });
+        const modelSelect=document.getElementById('connectionModel');
+        function resetModelSelect(){modelSelect.replaceChildren(new Option('Önce anahtarı gir, sonra modelleri getir',''));modelSelect.disabled=true;}
+        document.getElementById('connectionProvider').addEventListener('change',resetModelSelect);
+        document.getElementById('connectionApiKey').addEventListener('change',resetModelSelect);
+        document.getElementById('fetchModelsBtn').addEventListener('click',event=>run(event.currentTarget,async()=>{
+            const provider=document.getElementById('connectionProvider').value;
+            const api_key=document.getElementById('connectionApiKey').value.trim();
+            if(!api_key){setMessage('Önce API anahtarını gir.');return;}
+            setMessage('Modeller getiriliyor…');
+            const models=await fetchModels({provider,api_key});
+            fillModelSelect(modelSelect, models);
+            setMessage(models.length?`${models.length} model bulundu. Listeden seç ve bağlantıyı ekle.`:'Bu anahtarla uygun model bulunamadı.');
+        }));
         try{
             const metadata=await api('/api/providers');
             const select=document.getElementById('connectionProvider');

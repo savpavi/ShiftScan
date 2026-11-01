@@ -96,6 +96,7 @@ def test_generate_json_sends_provider_native_base64_image(monkeypatch, provider)
         (429, None, "rate_limit", 429),
         (503, None, "unavailable", 503),
         (400, None, "invalid_request", 400),
+        (404, None, "model_not_found", 400),
         (None, httpx.ReadTimeout("late"), "timeout", 504),
     ],
 )
@@ -166,6 +167,20 @@ class _Store:
         self.records.append(record)
         return record
 
+    def throttle(self, key, action="login", limit=10):
+        self.throttled = (key, action)
+
+    def get_connection(self, user_id, connection_id):
+        if connection_id != "conn-1" or not self.records:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        return dict(self.records[0])
+
+    def update_model(self, user_id, connection_id, model):
+        if connection_id != "conn-1" or not self.records:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        self.records[0]["model"] = model
+        return dict(self.records[0])
+
     def delete_connection(self, user_id, connection_id):
         if connection_id != "conn-1":
             raise HTTPException(status_code=404, detail="Connection not found")
@@ -225,3 +240,124 @@ def test_connection_routes_validate_and_never_return_api_key(monkeypatch):
     assert "top-secret-key" not in invalid.text
 
     assert client.delete("/api/connections/conn-1").json() == {"status": "deleted"}
+
+
+# --- Model listesi -----------------------------------------------------------
+
+def _list_with_transport(monkeypatch, handler, provider, api_key="top-secret-key"):
+    from services import providers
+
+    monkeypatch.setattr(
+        providers.httpx,
+        "AsyncClient",
+        lambda **kwargs: _REAL_ASYNC_CLIENT(transport=httpx.MockTransport(handler), **kwargs),
+    )
+    return asyncio.run(providers.list_models(provider, api_key))
+
+
+def test_gemini_model_list_keeps_generate_content_chat_models(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        seen["key"] = request.headers.get("x-goog-api-key")
+        return httpx.Response(200, json={"models": [
+            {"name": "models/gemini-3.8-flash", "displayName": "Gemini 3.8 Flash",
+             "supportedGenerationMethods": ["generateContent", "countTokens"]},
+            {"name": "models/gemma-4-27b-it", "displayName": "Gemma 4",
+             "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-3.5-flash-lite", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-3.8-flash-tts", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-3.1-flash-image", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-embedding-001", "supportedGenerationMethods": ["embedContent"]},
+        ]})
+
+    models = _list_with_transport(monkeypatch, handler, "gemini")
+    assert seen["url"].startswith("https://generativelanguage.googleapis.com/v1beta/models")
+    assert "key=" not in seen["url"] and seen["key"] == "top-secret-key"
+    assert [m["id"] for m in models] == ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemma-4-27b-it"]
+    assert models[0]["label"] == "Gemini 3.8 Flash"
+
+
+def test_openai_and_openrouter_model_lists_filter_non_chat(monkeypatch):
+    def openai(request):
+        assert request.headers["Authorization"] == "Bearer top-secret-key"
+        return httpx.Response(200, json={"data": [
+            {"id": "gpt-x"}, {"id": "o9-mini"}, {"id": "gpt-x-realtime"},
+            {"id": "text-embedding-3-small"}, {"id": "gpt-x-transcribe"}, {"id": "dall-e-3"},
+        ]})
+
+    assert [m["id"] for m in _list_with_transport(monkeypatch, openai, "openai")] == ["o9-mini", "gpt-x"]
+
+    def openrouter(request):
+        if request.url.path == "/api/v1/key":
+            assert request.headers["Authorization"] == "Bearer top-secret-key"
+            return httpx.Response(200, json={"data": {}})
+        return httpx.Response(200, json={"data": [
+            {"id": "a/vision", "name": "Vision", "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}},
+            {"id": "b/text", "name": "Text", "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]}},
+            {"id": "c/painter", "architecture": {"input_modalities": ["text"], "output_modalities": ["image"]}},
+        ]})
+
+    models = _list_with_transport(monkeypatch, openrouter, "openrouter")
+    assert [(m["id"], m["vision"]) for m in models] == [("a/vision", True), ("b/text", False)]
+
+
+@pytest.mark.parametrize(("status", "code"), [(400, "authentication"), (401, "authentication"),
+                                              (403, "authentication"), (429, "rate_limit"), (500, "unavailable")])
+def test_model_list_failures_are_sanitized(monkeypatch, status, code):
+    from services.providers import ProviderError
+
+    def handler(request):
+        return httpx.Response(status, text="top-secret-key upstream diagnostic")
+
+    with pytest.raises(ProviderError) as caught:
+        _list_with_transport(monkeypatch, handler, "anthropic")
+    assert caught.value.code == code
+    assert "top-secret-key" not in caught.value.message
+
+
+def test_openrouter_model_list_rejects_bad_key(monkeypatch):
+    from services.providers import ProviderError
+
+    def handler(request):
+        if request.url.path == "/api/v1/key":
+            return httpx.Response(401, json={"error": "bad"})
+        return httpx.Response(200, json={"data": [{"id": "a/b"}]})
+
+    with pytest.raises(ProviderError) as caught:
+        _list_with_transport(monkeypatch, handler, "openrouter")
+    assert caught.value.code == "authentication"
+
+
+def test_model_routes_use_new_key_or_saved_connection_and_patch_model(monkeypatch):
+    client, store = _route_client(monkeypatch)
+    from services import provider_routes
+
+    calls = []
+
+    async def fake_list(provider, api_key):
+        calls.append((provider, api_key))
+        return [{"id": "m-1", "label": "M1", "vision": True}]
+
+    monkeypatch.setattr(provider_routes, "list_models", fake_list)
+
+    response = client.post("/api/providers/models", json={"provider": "gemini", "api_key": " new-key "})
+    assert response.status_code == 200
+    assert response.json()["models"][0]["id"] == "m-1"
+    assert calls[-1] == ("gemini", "new-key")
+    assert store.throttled == ("user-1", "models")
+
+    assert client.post("/api/providers/models", json={"provider": "gemini"}).status_code == 422
+    assert client.post("/api/providers/models", json={"connection_id": "conn-1"}).status_code == 404
+
+    client.post("/api/connections", json={"provider": "openai", "label": "K", "model": "Gemini Flash", "api_key": "saved-key"})
+    response = client.post("/api/providers/models", json={"connection_id": "conn-1"})
+    assert response.status_code == 200 and "saved-key" not in response.text
+    assert calls[-1] == ("openai", "saved-key")
+
+    patched = client.patch("/api/connections/conn-1", json={"model": " m-1 "})
+    assert patched.status_code == 200
+    assert patched.json()["model"] == "m-1" and "api_key" not in patched.json()
+    assert client.patch("/api/connections/nope", json={"model": "m"}).status_code == 404
+    assert client.patch("/api/connections/conn-1", json={"model": "m", "x": 1}).status_code == 422

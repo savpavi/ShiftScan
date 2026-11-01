@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 
 from services.accounts import current_user, get_store, require_csrf
-from services.providers import SUPPORTED_PROVIDERS
+from services.providers import SUPPORTED_PROVIDERS, ProviderError, list_models
 
 
 router = APIRouter()
@@ -31,6 +31,41 @@ class ConnectionCreate(BaseModel):
 def _public(record: dict) -> dict:
     fields = ("id", "provider", "label", "model", "auth_type", "created_at")
     return {key: record[key] for key in fields if key in record}
+
+
+class ModelListRequest(BaseModel):
+    """Yeni anahtar (provider + api_key) ya da kayıtlı bağlantı (connection_id) için model listesi."""
+    model_config = {"extra": "forbid"}
+
+    provider: Literal["gemini", "openai", "anthropic", "openrouter"] | None = None
+    api_key: str | None = Field(default=None, min_length=1, max_length=4096)
+    connection_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class ModelUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    model: str = Field(min_length=1, max_length=120)
+
+
+@router.post("/api/providers/models")
+async def provider_models(request: Request, body: ModelListRequest):
+    user = current_user(request)
+    require_csrf(request)
+    store = get_store()
+    store.throttle(user["id"], action="models", limit=30)
+    if body.connection_id:
+        connection = store.get_connection(user["id"], body.connection_id)
+        provider, api_key = connection["provider"], connection["api_key"]
+    elif body.provider and body.api_key and body.api_key.strip():
+        provider, api_key = body.provider, body.api_key.strip()
+    else:
+        raise HTTPException(status_code=422, detail="Sağlayıcı ve API anahtarı gerekli.")
+    try:
+        models = await list_models(provider, api_key)
+    except ProviderError as exc:
+        raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.message}) from None
+    return {"provider": provider, "models": models}
 
 
 @router.get("/api/providers")
@@ -65,6 +100,13 @@ def create_connection(request: Request, body: ConnectionCreate):
         user["id"], body.provider, body.label.strip(), body.model.strip(), body.api_key
     )
     return _public(record)
+
+
+@router.patch("/api/connections/{connection_id}")
+def update_connection_model(request: Request, connection_id: str, body: ModelUpdate):
+    user = current_user(request)
+    require_csrf(request)
+    return _public(get_store().update_model(user["id"], connection_id, body.model.strip()))
 
 
 @router.delete("/api/connections/{connection_id}")

@@ -87,6 +87,95 @@ def _request(provider: str, model: str, api_key: str, prompt: str, image: dict |
     raise ProviderError("unavailable", "Sağlayıcı desteklenmiyor.", 400)
 
 
+MAX_MODELS = 400
+# Metin/görsel üretimine uygun olmayan aileler model listesinden çıkarılır.
+_NON_CHAT = re.compile(
+    r"(embed|tts|audio|realtime|transcribe|whisper|dall-e|image|imagen|veo|omni|live|"
+    r"moderation|search|robotics|computer-use|aqa|gemma-embed|babbage|davinci)",
+    re.IGNORECASE,
+)
+
+
+def _models_request(provider: str, api_key: str):
+    if provider == "gemini":
+        return ("https://generativelanguage.googleapis.com/v1beta/models",
+                {"x-goog-api-key": api_key}, {"pageSize": "1000"})
+    if provider == "openai":
+        return ("https://api.openai.com/v1/models", {"Authorization": f"Bearer {api_key}"}, None)
+    if provider == "anthropic":
+        return ("https://api.anthropic.com/v1/models",
+                {"x-api-key": api_key, "anthropic-version": "2023-06-01"}, {"limit": "1000"})
+    if provider == "openrouter":
+        return ("https://openrouter.ai/api/v1/models", {"Authorization": f"Bearer {api_key}"}, None)
+    raise ProviderError("unavailable", "Sağlayıcı desteklenmiyor.", 400)
+
+
+def _parse_models(provider: str, payload: Any) -> list[dict]:
+    items: list[dict] = []
+    try:
+        if provider == "gemini":
+            for raw in payload.get("models", []):
+                if "generateContent" not in raw.get("supportedGenerationMethods", []):
+                    continue
+                model_id = str(raw["name"]).removeprefix("models/")
+                items.append({"id": model_id, "label": raw.get("displayName") or model_id, "vision": True})
+        elif provider == "anthropic":
+            for raw in payload.get("data", []):
+                items.append({"id": raw["id"], "label": raw.get("display_name") or raw["id"], "vision": True})
+        elif provider == "openai":
+            for raw in payload.get("data", []):
+                model_id = str(raw["id"])
+                if re.match(r"^(gpt-|o\d|chatgpt-)", model_id):
+                    items.append({"id": model_id, "label": model_id, "vision": None})
+        elif provider == "openrouter":
+            for raw in payload.get("data", []):
+                arch = raw.get("architecture") or {}
+                if "text" not in (arch.get("output_modalities") or ["text"]):
+                    continue
+                vision = "image" in (arch.get("input_modalities") or [])
+                items.append({"id": raw["id"], "label": raw.get("name") or raw["id"], "vision": vision})
+    except (KeyError, TypeError, AttributeError):
+        raise ProviderError("invalid_output", "Sağlayıcının model listesi okunamadı.", 502) from None
+    seen, result = set(), []
+    for item in items:
+        if item["id"] in seen or _NON_CHAT.search(item["id"]) or len(item["id"]) > 120:
+            continue
+        seen.add(item["id"])
+        result.append({"id": item["id"], "label": str(item["label"])[:120], "vision": item["vision"]})
+    if provider in {"openai", "gemini"}:
+        result.sort(key=lambda m: m["id"], reverse=True)  # yeni sürümler üstte
+    if provider == "gemini":
+        result.sort(key=lambda m: not m["id"].startswith("gemini-"))  # Gemma vb. sona
+    return result[:MAX_MODELS]
+
+
+async def list_models(provider: str, api_key: str) -> list[dict]:
+    url, headers, params = _models_request(provider, api_key)
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
+            if provider == "openrouter":
+                # Model listesi herkese açık; anahtarı ayrıca doğrula.
+                check = await client.get("https://openrouter.ai/api/v1/key", headers=headers)
+                if check.status_code in {401, 403}:
+                    raise ProviderError("authentication", "Sağlayıcı API anahtarını kabul etmedi.", 401)
+            response = await client.get(url, headers=headers, params=params)
+    except httpx.TimeoutException:
+        raise ProviderError("timeout", "Sağlayıcı zamanında yanıt vermedi.", 504) from None
+    except httpx.HTTPError:
+        raise ProviderError("unavailable", "Sağlayıcıya şu anda ulaşılamıyor.", 503) from None
+    if response.status_code in {400, 401, 403}:
+        raise ProviderError("authentication", "Sağlayıcı API anahtarını kabul etmedi.", 401)
+    if response.status_code == 429:
+        raise ProviderError("rate_limit", "Sağlayıcı istek sınırına ulaştı.", 429)
+    if response.status_code >= 400 or len(response.content) > 8 * MAX_RESPONSE_BYTES:
+        raise ProviderError("unavailable", "Sağlayıcı model listesini veremedi.", 503)
+    try:
+        payload = response.json()
+    except ValueError:
+        raise ProviderError("invalid_output", "Sağlayıcının model listesi okunamadı.", 502) from None
+    return _parse_models(provider, payload)
+
+
 def _output_text(provider: str, payload: Any) -> str:
     try:
         if provider == "gemini":
@@ -120,7 +209,13 @@ async def _fetch_json(provider: str, url: str, headers: dict, params: dict | Non
                 raise ProviderError("authentication", "Sağlayıcı kimlik doğrulamasını reddetti.", 401)
             if response.status_code == 429:
                 raise ProviderError("rate_limit", "Sağlayıcı istek sınırına ulaştı.", 429)
-            if response.status_code in {400, 404, 409, 422}:
+            if response.status_code == 404:
+                raise ProviderError(
+                    "model_not_found",
+                    "Sağlayıcı bu model kimliğini tanımadı. Hesaplarım bölümünde bağlantının modelini listeden seç.",
+                    400,
+                )
+            if response.status_code in {400, 409, 422}:
                 raise ProviderError("invalid_request", "Sağlayıcı model veya istek ayarlarını kabul etmedi.", 400)
             if response.status_code >= 400:
                 raise ProviderError("unavailable", "Sağlayıcı isteği tamamlayamadı.", 503)

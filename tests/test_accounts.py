@@ -179,3 +179,15 @@ def test_invalid_fernet_configuration_is_unavailable(tmp_path, monkeypatch):
         get_store()
     assert error.value.status_code == 503
     assert not (tmp_path/'never-created.sqlite3').exists()
+
+
+def test_update_model_is_owner_scoped(store):
+    alice = store.register('alice_model', 'correct horse battery')
+    bob = store.register('bob_model', 'correct horse battery')
+    conn = store.add_connection(alice['id'], 'gemini', 'Mine', 'Gemini Flash', 'alice-secret')
+    with pytest.raises(HTTPException) as caught:
+        store.update_model(bob['id'], conn['id'], 'gemini-3.8-flash')
+    assert caught.value.status_code == 404
+    updated = store.update_model(alice['id'], conn['id'], ' gemini-3.8-flash ')
+    assert updated['model'] == 'gemini-3.8-flash' and 'api_key' not in updated
+    assert store.get_connection(alice['id'], conn['id'])['api_key'] == 'alice-secret'
