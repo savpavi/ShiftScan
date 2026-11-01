@@ -29,6 +29,7 @@ class WorkPeriod(BaseModel):
 class ScheduleDay(BaseModel):
     date: Optional[str] = Field(default=None, max_length=10)
     day_index: Optional[int] = Field(default=None, ge=0, le=6)
+    column: Optional[int] = Field(default=None, ge=0, le=30)
     status: Literal['work', 'off', 'unknown'] = 'unknown'
     shifts: list[WorkPeriod] = Field(default_factory=list, max_length=4)
     source_text: str = Field(default='', max_length=500)
@@ -88,9 +89,22 @@ def normalize_schedule(raw: dict, week_start: date) -> dict:
             'issue': 'Bu gün okunamadı; kontrol edin.',
         } for i in range(7)]
         seen = set()
+        # Başlıksız satır: tam 7 hücre var ve hiçbirinde gün/tarih yoksa soldan sağa Pzt→Paz
+        # öneri olarak yerleştir; her gün kontrol işaretli kalır (kullanıcı onaylamadan geçmez).
+        guessed = {}
+        if len(person.days) == 7 and all(c.day_index is None and not c.date for c in person.days):
+            columns = [c.column for c in person.days]
+            order = (sorted(range(7), key=lambda i: columns[i])
+                     if None not in columns and len(set(columns)) == 7 else list(range(7)))
+            guessed = {id(person.days[cell_pos]): day for day, cell_pos in enumerate(order)}
+            notices.append(f'{person.name}: Görselde gün başlığı yok; 7 hücre soldan sağa Pazartesi–Pazar '
+                           'sırasıyla yerleştirildi. Her günü görselle karşılaştırın.')
         for cell in person.days:
             index = cell.day_index
             issue = cell.issue
+            if id(cell) in guessed:
+                index = guessed[id(cell)]
+                issue = 'Gün sırayla tahmin edildi; kontrol edin.' + (f' {cell.issue}' if cell.issue else '')
             if cell.date:
                 try:
                     real_date = date.fromisoformat(cell.date)
@@ -133,6 +147,8 @@ def extraction_prompt(week_start: date) -> str:
         'Retain printed dates exactly; do not relabel a different week as the requested week. '
         f'The user requests the week beginning {week_start.isoformat()} (Monday). '
         'Use day_index 0=Monday through 6=Sunday only if the column is identifiable. '
+        'List each person\'s cells in visual left-to-right order and set column to the 0-based '
+        'visual column position, even when day headers are missing. '
         'Use null for missing printed date. Do not invent an absent year: leave date null and '
         'describe uncertainty in issue. Times must be HH:MM, use end < start for overnight shifts. '
         'Preserve multiple shifts per day. Put visible source cell text in source_text; '

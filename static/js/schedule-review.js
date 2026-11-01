@@ -96,7 +96,7 @@
                 [['unknown','Kontrol gerekiyor'],['work','Çalışıyor'],['off','İzin / tatil']].forEach(([value,label])=>{
                     const opt=node('option',label);opt.value=value;opt.selected=day.status===value;status.append(opt);
                 });
-                const times=node('input');times.className='input';times.type='text';times.placeholder='09:00-12:00, 13:00-18:00';
+                const times=node('input');times.className='input';times.type='text';times.placeholder='örn. 09:00-18:00';
                 times.setAttribute('aria-label',`${DAYS[day.day_index]} saatler`);
                 times.value=day.shifts.map(s=>`${s.start}-${s.end}`).join(', ');times.disabled=status.value!=='work';
                 const changed=()=>{ check.checked=false;times.disabled=status.value!=='work'; };

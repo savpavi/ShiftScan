@@ -59,3 +59,29 @@ def test_valid_png_mime_is_detected_not_trusted():
     image=validate_image('data:image/jpeg;base64,'+base64.b64encode(output.getvalue()).decode())
     assert image['mime_type']=='image/png'
     assert image['data']
+
+
+def test_headerless_row_of_seven_cells_is_mapped_in_visual_order_for_review():
+    cells = [{'status': 'work', 'shifts': [{'start': '09:00', 'end': '18:00'}], 'source_text': '09-18'}] * 4
+    cells += [{'status': 'off', 'source_text': 'OFF'}, {'status': 'unknown'}, {'status': 'off', 'source_text': 'OFF'}]
+    result = normalize_schedule({'people': [{'id': 'a', 'name': 'A', 'days': cells}]}, WEEK)
+    days = result['people'][0]['days']
+    assert [d['status'] for d in days] == ['work'] * 4 + ['off', 'unknown', 'off']
+    assert days[0]['shifts'] == [{'start': '09:00', 'end': '18:00'}]
+    assert all('sırayla' in d['issue'] for d in days)  # her gün kontrol istenir
+    assert not any('aktarılmadı' in w for w in result['warnings'])
+    assert any('başlığı yok' in w for w in result['warnings'])
+
+
+def test_headerless_cells_use_column_when_given():
+    cells = [{'column': 6 - i, 'status': 'off' if i else 'work',
+              'shifts': [] if i else [{'start': '10:00', 'end': '19:00'}]} for i in range(7)]
+    days = normalize_schedule({'people': [{'id': 'a', 'name': 'A', 'days': cells}]}, WEEK)['people'][0]['days']
+    assert days[6]['status'] == 'work' and days[0]['status'] == 'off'
+
+
+def test_headerless_cells_not_mapped_when_count_is_not_seven():
+    cells = [{'status': 'work', 'shifts': [{'start': '09:00', 'end': '18:00'}]}] * 5
+    result = normalize_schedule({'people': [{'id': 'a', 'name': 'A', 'days': cells}]}, WEEK)
+    assert all(d['status'] == 'unknown' for d in result['people'][0]['days'])
+    assert any('aktarılmadı' in w for w in result['warnings'])
