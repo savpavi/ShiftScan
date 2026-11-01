@@ -47,3 +47,7 @@ tests/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Self-hosting runtime data and secrets must never enter the image
+deploy/data/
+deploy/shiftscan.env

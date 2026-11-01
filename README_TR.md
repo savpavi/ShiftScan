@@ -96,12 +96,34 @@ AI planlayıcı açıkken boş zaman özetiniz ve aktivite hedefleriniz Google G
 gönderilir. Görsel Gemini'ye hiçbir zaman gönderilmez. `GOOGLE_API_KEY` yoksa
 uygulama kural tabanlı planlayıcıya düşer ve çalışmaya devam eder.
 
+## Kendi sunucunda çalıştırma
+
+Canlı sürüm ([vardiya.egebostanci.me](https://vardiya.egebostanci.me)) tek bir ev
+sunucusunda çalışıyor: Docker Compose + Cloudflare Tunnel, dışarıya port açılmadan.
+Hesaplar ve şifreli sağlayıcı anahtarları SQLite'ta durduğu için uygulama **kalıcı diski
+olan tek bir host** ister; yeniden başlatmada dosya sistemini silen ücretsiz/stateless
+PaaS örnekleri uygun değildir.
+
+1. `cp .env.example deploy/shiftscan.env` ve `SHIFTSCAN_ENCRYPTION_KEY` değerini girin
+   (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`).
+   Anahtarı ayrıca yedekleyin; anahtar olmadan kayıtlı bağlantılar çözülemez.
+2. `mkdir -p deploy/data && sudo chown 1000:1000 deploy/data`
+3. `docker compose -f deploy/docker-compose.yml up -d --build`
+4. `127.0.0.1:8010`'u HTTPS ile yayınlayın: Cloudflare Tunnel ingress kuralı
+   `hostname: alan.adi -> service: http://127.0.0.1:8010` ya da bir reverse proxy
+   (Caddy/nginx). Proxy `X-Forwarded-Proto`/`X-Forwarded-For` iletmeli; giriş rotaları
+   `Origin`'i uygulama adresiyle karşılaştırır, istek sınırları istemci IP'sini kullanır.
+5. Veritabanını canlı dosyayı kopyalayarak değil, SQLite'ın çevrim içi yedeğiyle alın
+   (`sqlite3 shiftscan.sqlite3 ".backup kopya.sqlite3"` veya Python `sqlite3.Connection.backup`).
+
+Sağlık kontrolü: `GET /health`.
+
 ## Testler
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                        # backend (102 test)
-node --test tests/js/*.test.js  # tarayici testleri (41 test)
+pytest                        # backend
+node --test tests/js/*.test.js  # tarayici testleri
 ```
 
 Her push ve pull request'te GitHub Actions bu iki paketi ve bir Docker build'i
@@ -146,10 +168,8 @@ bilgisinin uygulamaya ulaşması gerekir; yalnız bilinen proxy adreslerini uvic
 `--forwarded-allow-ips`/`FORWARDED_ALLOW_IPS` ile güvenilir olarak tanımlayın. Login
 rotaları `Origin` ile uygulama origin'ini karşılaştırır; yanlış proxy ayarı 403 doğurur.
 
-SQLite tek hostta kalıcı diskle çalışır. Mevcut Render free/stateless dağıtımına
-kullanıcı DB'sini geçici dosya sisteminde açmayın. Kalıcı diskli dağıtım veya başka
-bir kalıcı veri deposu kararı verilmeden canlı kullanıcı kaydı açılmamalıdır.
-Mevcut Blueprint otomatik olarak bu kaynakları sağlamaz. Yayın ayrı işlemdir.
+SQLite tek hostta kalıcı diskle çalışır; kullanıcı DB'sini geçici dosya sisteminde
+açmayın. Kurulum için bkz. [Kendi sunucunda çalıştırma](#kendi-sunucunda-çalıştırma).
 
 ### Yeni OCR akışı
 

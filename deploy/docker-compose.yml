@@ -1,0 +1,33 @@
+# ShiftScan self-hosting example (single host, persistent SQLite).
+#
+#   cp .env.example deploy/shiftscan.env      # then set SHIFTSCAN_ENCRYPTION_KEY
+#   mkdir -p deploy/data && sudo chown 1000:1000 deploy/data
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# The port is bound to loopback only. Publish it through a reverse proxy or a
+# Cloudflare Tunnel that terminates HTTPS (see README "Self-hosting").
+name: shiftscan
+services:
+  app:
+    build: ..
+    image: shiftscan:local
+    container_name: shiftscan
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:8010:8000"
+    env_file:
+      - ./shiftscan.env        # SHIFTSCAN_ENCRYPTION_KEY lives here; never commit it
+    environment:
+      SHIFTSCAN_DB_PATH: /app/data/shiftscan.sqlite3
+      SHIFTSCAN_SECURE_COOKIES: "true"
+      SHIFTSCAN_DEMO_AI: "false"
+      SHIFTSCAN_LEGACY_OCR: "false"
+      # Safe only because the port is loopback-only and the sole client is the local proxy.
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - ./data:/app/data
+    mem_limit: 400m
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "3" }
